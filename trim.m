@@ -153,8 +153,16 @@ function cornerformat = trim(file)
             words = 'case d'
         end
 % test 2        
-        
-    end
+    end % End Of the if-massive
+    
+    imagey = bim;
+    imagey(c1com(1),c1com(2)) = 0;
+    imagey(c2com(1),c2com(2)) = 0;
+    imagey(c3com(1),c3com(2)) = 0;
+    imagey(c4com(1),c4com(2)) = 0;
+    
+    imshow(imagey)
+    
 end
 
 function com = centerofmass(im, loc)
