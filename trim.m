@@ -31,7 +31,7 @@ function cornerformat = trim(file)
         areas(maxed) = 0;
     end
     
-    maxareas = arraymajig
+    maxareas = arraymajig;
     
     %com1 = imageprops(bim, arraymajig(1));
     %com2 = imageprops(bim, arraymajig(2));
