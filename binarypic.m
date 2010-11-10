@@ -1,7 +1,7 @@
 function newimage = binarypic(name)
     binary_pic = myjpgload(name,0);
     [m,n] = size(binary_pic);
-    threshold = mean(binary_pic,2)*0.75;
+    threshold = mean(binary_pic,2)*0.70;
     newimage = binary_pic;
     for r = 1 : m
        for c = 1 : n
