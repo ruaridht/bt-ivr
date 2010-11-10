@@ -119,62 +119,137 @@ function [robot, final, P] = trim(file,background,robot)
     c4com = centerofmass(bwlabeled,cornerlocs(4));
     c5com = centerofmass(bwlabeled,cornerlocs(5));
     
-    cornerlocs(1)
-    cornerlocs(2)
-    cornerlocs(3)
-    corn
-    
-%     imagey = bim;
-%     imagey(c1com(1),c1com(2)) = 0;
-%     imagey(c2com(1),c2com(2)) = 0;
-%     imagey(c3com(1),c3com(2)) = 0;
-%     imagey(c4com(1),c4com(2)) = 0;
-%     imagey(c5com(1),c5com(2)) = 0;
-%     imshow(imagey);
-    
+    imagey = bim;
+    imagey(c1com(1),c1com(2)) = 0;
+    imagey(c2com(1),c2com(2)) = 0;
+    imagey(c3com(1),c3com(2)) = 0;
+    imagey(c4com(1),c4com(2)) = 0;
+    imagey(c5com(1),c5com(2)) = 0;
+    imshow(imagey);
+
     atob = myeuclid(c1com, c2com);
     atoc = myeuclid(c1com, c3com);
     atoe = myeuclid(c1com, c5com);
+    btoe = myeuclid(c2com, c5com);
+    ctoe = myeuclid(c3com, c5com);
+    dtoe = myeuclid(c4com, c5com);
+    
+    midpoint = (atoe +btoe + ctoe + dtoe)/4;
+    
+    bottom = [];
+    top = [];
+    
+    if atoe < midpoint    
+        bottom = [bottom; c1com];        
+    else        
+        top = [top; c1com];        
+    end
+    
+    if btoe < midpoint    
+        bottom = [bottom; c2com];        
+    else        
+        top = [top; c2com];        
+    end
+    
+    if ctoe < midpoint    
+        bottom = [bottom; c3com];        
+    else        
+        top = [top; c3com];        
+    end
+    
+    if dtoe < midpoint    
+        bottom = [bottom; c4com];        
+    else        
+        top = [top; c4com];        
+    end
+      
+    if (bottom(1,1) - bottom(2,1))*(bottom(1,1) - bottom(2,1)) < (bottom(1,2) - bottom(2,2))*(bottom(1,2) - bottom(2,2))
+       %portrait
+       
+       write = 'portrait';
+       
+       if bottom(1,1) < bottom(2,1)          
+           cornerformat = [c1com; c2com];
+           write = [write 'a'];
+       else           
+           cornerformat = [c2com; c1com];
+           write = [write 'b'];
+       end
+       
+       if top(1,1) < top(2,1)          
+           cornerformat = [cornerformat; c3com; c4com];
+           write = [write '1'];
+       else           
+           cornerformat = [cornerformat; c4com; c3com]; 
+           write = [write '2'];
+       end 
+       
+    else
+        %landscape
+        
+        write = 'landscape'
+        
+        if bottom(1,2) < bottom(2,2)          
+            cornerformat = [c1com; c2com];
+            write = [write 'a'];
+        else           
+            cornerformat = [c2com; c1com];
+            
+        end
+       
+        if top(1,2) < top(2,2)          
+            cornerformat = [cornerformat; c3com; c4com];           
+        else           
+            cornerformat = [cornerformat; c4com; c3com];           
+        end 
+        
+        write = 'case 2'
+    end
+    
+    write = write
+    
+    cornerformat = cornerformat
     
     % cornerformat in format [bl br tl tr] (portrait, robot at bottom)
     % Note: the test cases here have not used background subtraction, which
     % will need to be omitted.
     
-    if atob > atoc
-        
-        if atoe > myeuclid(c2com,c5com)
-            
-            cornerformat = [c2com; c4com; c1com; c3com]
-
-            words = 'case a'
-% tests 1,3
-        else
-
-            cornerformat = [c3com; c4com; c2com; c1com]
-
-            words = 'case b'
-        end
-%test 5        
-    else     
-        
-        if atoe > myeuclid(c3com,c5com)
-         
-            cornerformat = [c4com; c3com; c2com; c1com]
-
-            words = 'case c'
-%test 4            
-        else
-
-            cornerformat = [c2com; c1com; c4com; c3com]
-
-            words = 'case d'
-        end
-% test 2        
-
-    end % End of large if
+%     if atob > atoc
+%         
+%         if atoe > myeuclid(c2com,c5com)
+%             
+%             cornerformat = [c2com; c4com; c1com; c3com]
+% 
+%             words = 'case a'
+% % tests 1,3
+%         else
+% 
+%             cornerformat = [c3com; c4com; c2com; c1com]
+% 
+%             words = 'case b'
+%         end
+% %test 5        
+%     else     
+%         
+%         if atoe > myeuclid(c3com,c5com)
+%          
+%             cornerformat = [c4com; c3com; c2com; c1com]
+% 
+%             words = 'case c'
+% %test 4            
+%         else
+% 
+%             cornerformat = [c2com; c1com; c4com; c3com]
+% 
+%             words = 'case d'
+%         end
+% % test 2        
+% 
+%     end % End of large if
     
     P = projecter(cornerformat);
     final = transfer(bim, P);
+    %imshow(final);
 %     robot = binarypic(robot);
 %     robot = transfer(robot, P);
 %     robot = robot - final;

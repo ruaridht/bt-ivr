@@ -126,10 +126,90 @@ function [robot, final, P] = trim(file,background,robot)
     imagey(c4com(1),c4com(2)) = 0;
     imagey(c5com(1),c5com(2)) = 0;
     imshow(imagey);
-    
+
     atob = myeuclid(c1com, c2com);
     atoc = myeuclid(c1com, c3com);
     atoe = myeuclid(c1com, c5com);
+    btoe = myeuclid(c2com, c5com);
+    ctoe = myeuclid(c3com, c5com);
+    dtoe = myeuclid(c4com, c5com);
+    
+%     midpoint = (atoe +btoe + ctoe + dtoe)/4;
+%     
+%     bottom = [];
+%     top = [];
+%     
+%     if atoe < midpoint    
+%         bottom = [bottom; c1com];        
+%     else        
+%         top = [top; c1com];        
+%     end
+%     
+%     if btoe < midpoint    
+%         bottom = [bottom; c2com];        
+%     else        
+%         top = [top; c2com];        
+%     end
+%     
+%     if ctoe < midpoint    
+%         bottom = [bottom; c3com];        
+%     else        
+%         top = [top; c3com];        
+%     end
+%     
+%     if dtoe < midpoint    
+%         bottom = [bottom; c4com];        
+%     else        
+%         top = [top; c4com];        
+%     end
+%       
+%     if (bottom(1,1) - bottom(2,1))*(bottom(1,1) - bottom(2,1)) < (bottom(1,2) - bottom(2,2))*(bottom(1,2) - bottom(2,2))
+%        %portrait
+%        
+%        write = 'portrait';
+%        
+%        if bottom(1,1) < bottom(2,1)          
+%            cornerformat = [c1com; c2com];
+%            write = [write ' a'];
+%        else           
+%            cornerformat = [c2com; c1com];
+%            write = [write ' b'];
+%        end
+%        
+%        if top(1,1) < top(2,1)          
+%            cornerformat = [cornerformat; c3com; c4com];
+%            write = [write '1'];
+%        else           
+%            cornerformat = [cornerformat; c4com; c3com]; 
+%            write = [write '2'];
+%        end 
+%        
+%     else
+%         %landscape
+%         
+%         write = 'landscape'
+%         
+%         if bottom(1,2) < bottom(2,2)          
+%             cornerformat = [c1com; c2com];
+%             write = [write ' a'];
+%         else           
+%             cornerformat = [c2com; c1com];
+%             write = [write ' b'];
+%         end
+%        
+%         if top(1,2) < top(2,2)          
+%             cornerformat = [cornerformat; c3com; c4com];
+%             write = [write '1'];  
+%         else           
+%             cornerformat = [cornerformat; c4com; c3com];
+%             write = [write '2'];
+%         end 
+%         
+%     end
+%     
+%     write = write
+%     
+%     cornerformat = cornerformat
     
     % cornerformat in format [bl br tl tr] (portrait, robot at bottom)
     % Note: the test cases here have not used background subtraction, which
@@ -170,6 +250,7 @@ function [robot, final, P] = trim(file,background,robot)
     
     P = projecter(cornerformat);
     final = transfer(bim, P);
+    %imshow(final);
 %     robot = binarypic(robot);
 %     robot = transfer(robot, P);
 %     robot = robot - final;
