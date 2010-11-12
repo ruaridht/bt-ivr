@@ -7,12 +7,12 @@
 function [robot, final, P] = trim(file,background,robot)
     
     % Get the binary image of the map
-    bim = binarypic(file);
+    bim = binarypic(file,0.7);
     
     % Subtract the background
     if background ~= 0
         
-       tim = binarypic(background);
+       tim = binarypic(background,0.7);
        
        bim = bim - tim;
        
@@ -46,7 +46,9 @@ function [robot, final, P] = trim(file,background,robot)
     
     % Create an array to store the indexes of the 10 largest areas in the
     % image (i.e. in 'areas')
-    arraymajig = zeros(10);
+    % If there are fewer objects present arrlen will be less than 10.
+    arrlen = min(10,length(areas));
+    arraymajig = zeros(arrlen);
 
     n = length(arraymajig);
     m = length(areas);
@@ -68,7 +70,7 @@ function [robot, final, P] = trim(file,background,robot)
     % compact objects in the top ten largest (in arraymajig)
     lowcompacsloc = zeros(6);
     % compacs: stores the compactness of each image section in arraymajig
-    compacs = zeros(10);
+    compacs = zeros(arrlen);
     
     % Populate compacs.
     for c = 1 : n
@@ -112,27 +114,206 @@ function [robot, final, P] = trim(file,background,robot)
         lowcompacsarea(maxindex) = 0;
     end
     
-    % Get the Centre Of Mass of the objects at each cornerloc
+    cornerformat = findcorners(bwlabeled, cornerlocs)
+    
+    P = projector(cornerformat)
+    final = transfer(bim, P);
+    imshow(final)
+    
+    %possibly fix transform if we've botched it
+    [resa resb] = size(final);
+    midspace = final((resa*0.3):(resa*0.6), (1:resb));
+    
+    if bearea(midspace) < 100
+            
+        %we have a problem
+        
+       %newcorners = [cornerformat(3,1) cornerformat(3,2); cornerformat(4,1) cornerformat(4,2); cornerformat(1,1) cornerformat(1,2); cornerformat(2,1) cornerformat(2,2)];
+       newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)]
+       P = projector(newcorners)
+       final = transfer(bim,P);
+       figure(2)
+       imshow(final)
+        
+    end
+        
+    
+    robot = binarypic(robot,0.8);
+    robot = transfer(robot, P);
+    robot = robot - final;
+    
+% % Finding out where the blocks are
+% 
+%     blocks = binarypic(robot,0.80);
+%     blocks = transfer(blocks, P);
+%     
+%     [resa resb] = size(blocks);
+%     
+%     %closest to robot
+%     space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.55));
+%     areaspace1 = bearea(space1);
+%     
+%     %middlespace
+%     space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.55));
+%     areaspace2 = bearea(space2);
+%     
+%     %farspace
+%     space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.55));
+%     areaspace3 = bearea(space3);
+%     
+%     %Testing which block case we have
+%     if (areaspace1 < areaspace2) && (areaspace1 < areaspace3)
+%        
+%         blockcase = 1
+%         
+%     elseif (areaspace2 < areaspace3)
+%             
+%         blockcase = 2
+%             
+%     else
+%                
+%         blockcase = 3
+%             
+%     end
+%     
+%     rspace1 = blocks((resa*0.2):(resa*0.3), (resb*0.2):(resa*0.4));
+%     imshow(space3);
+%   %  imshow(blocks);
+
+end
+
+function com = centerofmass(bwim, loc)
+    image = imsections(bwim,loc);
+    
+    [H,W] = size(image);
+    area = bearea(image);
+        
+    %com = (0,0);
+    r = 0;
+    c = 0;
+    
+    for x = 1 : W
+        for y = 1 : H
+               r = r + y*image(y,x);
+               c = c + x*image(y,x);
+        end
+    end
+    
+    %com = [compactness r/area c/area];
+    com = [round(r/area) round(c/area)];
+end
+
+% Bearea. It just works. Bearea, the next best thing since Chuck Norris.
+% Bearea, the best a bear can get.
+function myarea = bearea(im)
+    [H,W] = size(im);
+    
+    count = 0;
+    
+    for a = 1 : H
+        for b = 1 : W
+            count = count + im(a,b);
+        end
+    end
+    
+    myarea = count;
+end
+
+function compac = compacty(bwim, loc)
+    image = imsections(bwim,loc);
+    
+    area = bearea(image);
+    perim = bearea(mybwperim(image));
+     
+    % compactness
+    compac = (perim*perim)/(4*pi*area);
+end
+
+function dist = myeuclid(a , b)
+    
+    dist = sqrt((a(1) - b(1))*(a(1) - b(1)) + (a(2) - b(2))*(a(2) - b(2)));
+    
+end
+
+function P = projector(coms) 
+    
+    %UV=zeros(4,2);
+    %XY=zeros(4,2);
+    UV=[[30 , 50 ]',[30,310]',[420,50]',[420,310]']';    % target points
+    XY=coms;    % source points
+
+    P=esthomog(UV,XY,4);    % estimate homography mapping UV to XY
+    
+end
+
+function finalout = transfer(img, P)
+    % get input image and sizes
+    
+    inimage=img;
+    [IR,IC]=size(inimage);
+
+    outimage=zeros(460, 360,3);   % destination image
+    %v=zeros(3,1); % We don't need to assign v here, but meh
+
+    % loop over all pixels in the destination image, finding
+    % corresponding pixel in source image
+    for r = 1 : 460
+        for c = 1 : 360
+            v=P*[r,c,1]';        % project destination pixel into source
+            y=round(v(1)/v(3));  % undo projective scaling and round to nearest integer
+            x=round(v(2)/v(3));
+            if (x >= 1) && (x <= IC) && (y >= 1) && (y <= IR)
+                outimage(r,c,:)=inimage(y,x,:);   % transfer colour
+            end
+        end
+    end
+
+    finalout = (outimage/255);
+
+end
+
+function newimage = binarypic(name,mod)
+    binary_pic = myjpgload(name,0);
+    [m,n] = size(binary_pic);
+    threshold = (mean(binary_pic,2))*mod;
+    newimage = binary_pic;
+    for r = 1 : m
+       for c = 1 : n
+               if (binary_pic(r,c) > threshold)
+                       newimage(r,c) = 0;
+               else
+
+               newimage(r,c) = 255;
+
+           end
+       end
+    end
+end
+
+
+function cornerformat = findcorners(bwlabeled, cornerlocs)
+
+        % Get the Centre Of Mass of the objects at each cornerloc
     c1com = centerofmass(bwlabeled,cornerlocs(1));
     c2com = centerofmass(bwlabeled,cornerlocs(2));
     c3com = centerofmass(bwlabeled,cornerlocs(3));
     c4com = centerofmass(bwlabeled,cornerlocs(4));
     c5com = centerofmass(bwlabeled,cornerlocs(5));
     
-    imagey = bim;
-    imagey(c1com(1),c1com(2)) = 0;
-    imagey(c2com(1),c2com(2)) = 0;
-    imagey(c3com(1),c3com(2)) = 0;
-    imagey(c4com(1),c4com(2)) = 0;
-    imagey(c5com(1),c5com(2)) = 0;
-    imshow(imagey);
+%     imagey = bim;
+%     imagey(c1com(1),c1com(2)) = 0;
+%     imagey(c2com(1),c2com(2)) = 0;
+%     imagey(c3com(1),c3com(2)) = 0;
+%     imagey(c4com(1),c4com(2)) = 0;
+%     imagey(c5com(1),c5com(2)) = 0;
+%     imshow(imagey);
 
     atob = myeuclid(c1com, c2com);
     atoc = myeuclid(c1com, c3com);
     atoe = myeuclid(c1com, c5com);
-    btoe = myeuclid(c2com, c5com);
-    ctoe = myeuclid(c3com, c5com);
-    dtoe = myeuclid(c4com, c5com);
+%     btoe = myeuclid(c2com, c5com);
+%     ctoe = myeuclid(c3com, c5com);
+%     dtoe = myeuclid(c4com, c5com);
     
 %     midpoint = (atoe +btoe + ctoe + dtoe)/4;
 %     
@@ -215,135 +396,43 @@ function [robot, final, P] = trim(file,background,robot)
     % Note: the test cases here have not used background subtraction, which
     % will need to be omitted.
     
-    if atob > atoc
-        
+    if atob > atoc        
         if atoe > myeuclid(c2com,c5com)
-            
-            cornerformat = [c2com; c4com; c1com; c3com]
-
-            words = 'case a'
+            cornerformat = [c2com; c4com; c1com; c3com];
+            %words = 'case a'            
 % tests 1,3
         else
-
-            cornerformat = [c3com; c4com; c2com; c1com]
-
-            words = 'case b'
+            cornerformat = [c3com; c4com; c2com; c1com];
+            %words = 'case b'
         end
 %test 5        
-    else     
-        
-        if atoe > myeuclid(c3com,c5com)
-         
-            cornerformat = [c4com; c3com; c2com; c1com]
-
-            words = 'case c'
+    else        
+        if atoe > myeuclid(c3com,c5com)         
+            cornerformat = [c4com; c3com; c2com; c1com];
+            %words = 'case c'
 %test 4            
         else
-
-            cornerformat = [c2com; c1com; c4com; c3com]
-
-            words = 'case d'
+            cornerformat = [c2com; c1com; c4com; c3com];
+            %words = 'case d'
         end
-% test 2        
-
+% test 2
     end % End of large if
-    
-    P = projecter(cornerformat);
-    final = transfer(bim, P);
-    %imshow(final);
-%     robot = binarypic(robot);
-%     robot = transfer(robot, P);
-%     robot = robot - final;
-    
+
 end
 
-function com = centerofmass(bwim, loc)
-    image = imsections(bwim,loc);
+function imsect = imsections(bwlabeled, secLoc)
     
-    [H,W] = size(image);
-    area = bearea(image);
-        
-    %com = (0,0);
-    r = 0;
-    c = 0;
+    [u,v] = find(bwlabeled==secLoc);
     
-    for x = 1 : W
-        for y = 1 : H
-               r = r + y*image(y,x);
-               c = c + x*image(y,x);
-        end
+    m = length(u);
+    n = length(v);
+    
+    imsect = zeros(640,480);
+    
+    for x = 1:m
+        imsect(u(x),v(x)) = 1;
     end
-    
-    %com = [compactness r/area c/area];
-    com = [round(r/area) round(c/area)];
-end
-
-% Bearea. It just works. Bearea, the next best thing since Chuck Norris.
-% Bearea, the best a bear can get.
-function myarea = bearea(im)
-    [H,W] = size(im);
-    
-    count = 0;
-    
-    for a = 1 : H
-        for b = 1 : W
-            count = count + im(a,b);
-        end
-    end
-    
-    myarea = count;
-end
-
-function compac = compacty(bwim, loc)
-    image = imsections(bwim,loc);
-    
-    area = bearea(image);
-    perim = bearea(mybwperim(image));
      
-    % compactness
-    compac = (perim*perim)/(4*pi*area);
 end
 
-function dist = myeuclid(a , b)
-    
-    dist = sqrt((a(1) - b(1))*(a(1) - b(1)) + (a(2) - b(2))*(a(2) - b(2)));
-    
-end
-
-function P = projecter(coms) 
-    
-    %UV=zeros(4,2);
-    %XY=zeros(4,2);
-    UV=[[30 , 50 ]',[30,310]',[420,50]',[420,310]']';    % target points
-    XY=coms;    % source points
-
-    P=esthomog(UV,XY,4);    % estimate homography mapping UV to XY
-    
-end
-
-function finalout = transfer(img, P)
-    % get input image and sizes
-    
-    inimage=img;
-    [IR,IC]=size(inimage);
-
-    outimage=zeros(460, 360,3);   % destination image
-    %v=zeros(3,1); % We don't need to assign v here, but meh
-
-    % loop over all pixels in the destination image, finding
-    % corresponding pixel in source image
-    for r = 1 : 460
-        for c = 1 : 360
-            v=P*[r,c,1]';        % project destination pixel into source
-            y=round(v(1)/v(3));  % undo projective scaling and round to nearest integer
-            x=round(v(2)/v(3));
-            if (x >= 1) && (x <= IC) && (y >= 1) && (y <= IR)
-                outimage(r,c,:)=inimage(y,x,:);   % transfer colour
-            end
-        end
-    end
-
-    finalout = (outimage/255);
-
-end
 
