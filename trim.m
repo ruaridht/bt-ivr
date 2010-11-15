@@ -114,11 +114,11 @@ function [robot, final, P] = trim(file,background,robot)
         lowcompacsarea(maxindex) = 0;
     end
     
-    cornerformat = findcorners(bwlabeled, cornerlocs)
+    cornerformat = findcorners(bwlabeled, cornerlocs);
     
-    P = projector(cornerformat)
+    P = projector(cornerformat);
     final = transfer(bim, P);
-    imshow(final)
+%     imshow(final)
     
     %possibly fix transform if we've botched it
     [resa resb] = size(final);
@@ -129,57 +129,70 @@ function [robot, final, P] = trim(file,background,robot)
         %we have a problem
         
        %newcorners = [cornerformat(3,1) cornerformat(3,2); cornerformat(4,1) cornerformat(4,2); cornerformat(1,1) cornerformat(1,2); cornerformat(2,1) cornerformat(2,2)];
-       newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)]
-       P = projector(newcorners)
+       newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
+       P = projector(newcorners);
        final = transfer(bim,P);
-       figure(2)
-       imshow(final)
+       %figure,imshow(final);
         
     end
-        
+            
+% Finding out where the blocks are
+
+    blocks = binarypic(robot,0.80);
+    blocks = transfer(blocks, P);
     
-    robot = binarypic(robot,0.8);
+    [resa resb] = size(blocks);
+    
+    %closest to robot
+    space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.55));
+    areaspace1 = bearea(space1);
+    
+    %middlespace
+    space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.55));
+    areaspace2 = bearea(space2);
+    
+    %farspace
+    space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.55));
+    areaspace3 = bearea(space3);
+    
+    %Testing which block case we have
+    if (areaspace1 < areaspace2) && (areaspace1 < areaspace3)
+       
+        blockcase = 1;
+        
+    elseif (areaspace2 < areaspace3)
+            
+        blockcase = 2;
+            
+    else
+
+        blockcase = 3;
+            
+    end
+    
+    rspace1 = blocks((resa*0.2):(resa*0.3), (resb*0.2):(resa*0.4));
+    imshow(space3);
+%    imshow(blocks);
+
+    robot = binarypic(robot,0.65);
     robot = transfer(robot, P);
     robot = robot - final;
     
-% % Finding out where the blocks are
-% 
-%     blocks = binarypic(robot,0.80);
-%     blocks = transfer(blocks, P);
-%     
-%     [resa resb] = size(blocks);
-%     
-%     %closest to robot
-%     space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.55));
-%     areaspace1 = bearea(space1);
-%     
-%     %middlespace
-%     space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.55));
-%     areaspace2 = bearea(space2);
-%     
-%     %farspace
-%     space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.55));
-%     areaspace3 = bearea(space3);
-%     
-%     %Testing which block case we have
-%     if (areaspace1 < areaspace2) && (areaspace1 < areaspace3)
-%        
-%         blockcase = 1
-%         
-%     elseif (areaspace2 < areaspace3)
-%             
-%         blockcase = 2
-%             
-%     else
-%                
-%         blockcase = 3
-%             
-%     end
-%     
-%     rspace1 = blocks((resa*0.2):(resa*0.3), (resb*0.2):(resa*0.4));
-%     imshow(space3);
-%   %  imshow(blocks);
-
+    robot = cleanup(robot,1,3,1);
+    
+    bwrobot = im2bw(robot);
+    
+    robotbwlabel = bwlabel(bwrobot,8);
+    robotlargest = getlargest(robotbwlabel,0);
+    
+    robotcom = centerofmass(robotlargest,1);
+    
+    if (robotcom(2) > 240)
+        test = 'on right'
+    else
+        test = 'on left'
+    end
+    
 end
 
 function com = centerofmass(bwim, loc)
@@ -268,7 +281,7 @@ function finalout = transfer(img, P)
         end
     end
 
-    finalout = (outimage/255);
+    finalout = outimage/255;
 
 end
 
@@ -289,7 +302,6 @@ function newimage = binarypic(name,mod)
        end
     end
 end
-
 
 function cornerformat = findcorners(bwlabeled, cornerlocs)
 
