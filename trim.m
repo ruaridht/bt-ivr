@@ -6,6 +6,30 @@
 %
 function [robot, final, P] = trim(file,background,robot)
     
+  
+    %Fire up the projection, work out what the situation is
+    [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,background,robot);
+    
+    %Assign targets
+    verttargs = resa*0.2*(0.70 + 1.1);
+    t1 = [verttargs 0.25*resb];
+    t2 = [(resa*0.2*(0.70 + 2.2)) 0.25*resb];
+    t3 = [(resa*0.2*(0.70 + 3.3)) 0.25*resb];
+    
+    final(t1(1),t1(2)) = 1;
+    final(t2(1),t2(2)) = 1;
+    final(t3(1),t3(2)) = 1;
+    
+    imshow(final);
+%     t2 =
+%     endtarget =
+    
+    %Moveout
+    
+end
+
+function [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,background,robot)
+    
     % Get the binary image of the map
     bim = binarypic(file,0.7);
     
@@ -126,33 +150,41 @@ function [robot, final, P] = trim(file,background,robot)
     
     if bearea(midspace) < 100
             
-        %we have a problem
-        
-       %newcorners = [cornerformat(3,1) cornerformat(3,2); cornerformat(4,1) cornerformat(4,2); cornerformat(1,1) cornerformat(1,2); cornerformat(2,1) cornerformat(2,2)];
+       %we have a problem
        newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
        P = projector(newcorners);
        final = transfer(bim,P);
-       %figure,imshow(final);
-       lalala = 'lalalala'
+       
+       topspace = final((resa*0.2):(resa*0.3), (1:resb));
+       botspace = final((resa*0.7):(resa*0.8), (1:resb));
+       
+       if bearea(topspace) < bearea(botspace)
+       
+            %newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
+            newcorners = [cornerformat(4,1) cornerformat(4,2); cornerformat(1,1) cornerformat(1,2); cornerformat(3,1) cornerformat(3,2); cornerformat(2,1) cornerformat(2,2)];
+            P = projector(newcorners);
+            final = transfer(bim,P); 
+       
+       end
+       
     end
-            
+  
 % Finding out where the blocks are
 
     blocks = binarypic(robot,0.80);
     blocks = transfer(blocks, P);
-    
-    [resa resb] = size(blocks);
-    
+     
+
     %closest to robot
-    space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.55));
+    space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.50));
     areaspace1 = bearea(space1);
     
     %middlespace
-    space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.55));
+    space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.50));
     areaspace2 = bearea(space2);
     
     %farspace
-    space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.55));
+    space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.50));
     areaspace3 = bearea(space3);
     
     %Testing which block case we have
@@ -171,14 +203,14 @@ function [robot, final, P] = trim(file,background,robot)
     end
     
     rspace1 = blocks((resa*0.2):(resa*0.3), (resb*0.2):(resa*0.4));
-    imshow(space3);
+    %imshow(space3);
 %    imshow(blocks);
 
     robot = binarypic(robot,0.65);
     robot = transfer(robot, P);
     robot = robot - final;
     
-    robot = cleanup(robot,1,3,1);
+    robot = cleanup(robot,1,3,0);
     
     bwrobot = im2bw(robot);
     
@@ -187,10 +219,11 @@ function [robot, final, P] = trim(file,background,robot)
     
     robotcom = centerofmass(robotlargest,1);
     
+    % How to get which side the robot is on
     if (robotcom(2) > 240)
-        test = 'on right'
+        robotcase = 1;
     else
-        test = 'on left'
+        robotcase = -1;
     end
     
 end
@@ -265,7 +298,7 @@ function finalout = transfer(img, P)
     inimage=img;
     [IR,IC]=size(inimage);
 
-    outimage=zeros(460, 360,3);   % destination image
+    outimage=zeros(460, 360);   % destination image
     %v=zeros(3,1); % We don't need to assign v here, but meh
 
     % loop over all pixels in the destination image, finding
@@ -276,7 +309,7 @@ function finalout = transfer(img, P)
             y=round(v(1)/v(3));  % undo projective scaling and round to nearest integer
             x=round(v(2)/v(3));
             if (x >= 1) && (x <= IC) && (y >= 1) && (y <= IR)
-                outimage(r,c,:)=inimage(y,x,:);   % transfer colour
+                outimage(r,c)=inimage(y,x);   % transfer colour
             end
         end
     end
