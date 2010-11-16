@@ -133,7 +133,7 @@ function [robot, final, P] = trim(file,background,robot)
        P = projector(newcorners);
        final = transfer(bim,P);
        %figure,imshow(final);
-        
+       lalala = 'lalalala'
     end
             
 % Finding out where the blocks are
