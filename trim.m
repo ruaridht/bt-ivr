@@ -8,27 +8,115 @@ function [robot, final, P] = trim(file,background,robot)
     
   
     %Fire up the projection, work out what the situation is
-    [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,background,robot);
+    [robot, final, P, blockcase, robotcase, resa, resb, robcom] = initialise(file,background,robot);
     
     %Assign targets
-    verttargs = resa*0.2*(0.70 + 1.1);
-    t1 = [verttargs 0.25*resb];
-    t2 = [(resa*0.2*(0.70 + 2.2)) 0.25*resb];
-    t3 = [(resa*0.2*(0.70 + 3.3)) 0.25*resb];
+    verttargs = round(resa*0.2*(0.53 + 1.1*blockcase));
+    hortargs = resb*(0.5 + robotcase*0.25);
+    t1 = [verttargs hortargs];
+    t2 = [verttargs (resb - hortargs)];
+    
+    endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)];
     
     final(t1(1),t1(2)) = 1;
     final(t2(1),t2(2)) = 1;
-    final(t3(1),t3(2)) = 1;
-    
-    imshow(final);
-%     t2 =
-%     endtarget =
+    final(endtarget(1),endtarget(2)) = 1;
+    final(robcom(1), robcom(2)) = 1;
+    %imshow(final);
     
     %Moveout
+   
     
+    %Number of pixels between the robot and the target location??
+    xerxesAtLoc = 100;
+    
+    open_robot
+    while (xerxesAtLoc > 15)
+        send_command('D,1,1')
+        read_command
+        
+        pause(1);
+        
+        send_command('D,0,0')
+        read_command
+        
+        image = getImage;
+        pimage = transfer(image, P);
+        pimage = pimage - final;
+        robotbwlabel = bwlabel(pimage,8);
+        robotlargest = getlargest(robotbwlabel,0);
+        robcom = centerofmass(robotlargest,1);
+        
+        final(robcom(1),robcom(2)) = 1;
+        
+        xerxesAtLoc = myeuclid(robcom, t1)
+        
+    end
+    
+    % Turn Xerxes 90 degrees (in the correct direction)
+    send_command('D,1,-1');
+    pause(5);
+    send_command('D,0,0');
+    
+    xerxesAtLoc = 100;
+    
+    while (xerxesAtLoc > 40)
+        send_command('D,1,1')
+        read_command
+        
+        pause(1);
+        
+        send_command('D,0,0')
+        read_command
+        
+        image = getImage;
+        pimage = transfer(image, P);
+        pimage = pimage - final;
+        robotbwlabel = bwlabel(pimage,8);
+        robotlargest = getlargest(robotbwlabel,0);
+        robcom = centerofmass(robotlargest,1);
+        
+        final(robcom(1),robcom(2)) = 1;
+        
+        xerxesAtLoc = myeuclid(robcom, t2)
+        
+    end
+    
+    % Turn Xerxes 90 degrees (in the correct direction)
+    send_command('D,1,-1');
+    pause(5.5);
+    send_command('D,0,0');
+    
+    xerxesAtLoc = 100;
+    
+    while (xerxesAtLoc > 40)
+        send_command('D,1,1')
+        read_command
+        
+        pause(1);
+        
+        send_command('D,0,0')
+        read_command
+        
+        image = getImage;
+        pimage = transfer(image, P);
+        pimage = pimage - final;
+        robotbwlabel = bwlabel(pimage,8);
+        robotlargest = getlargest(robotbwlabel,0);
+        robcom = centerofmass(robotlargest,1);
+        
+        final(robcom(1),robcom(2)) = 1;
+        
+        xerxesAtLoc = myeuclid(robcom, endtarget)
+        
+    end
+    
+    close_robot
+    
+    %imshow(final);
 end
 
-function [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,background,robot)
+function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initialise(file,background,robot)
     
     % Get the binary image of the map
     bim = binarypic(file,0.7);
@@ -161,9 +249,9 @@ function [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,b
        if bearea(topspace) < bearea(botspace)
        
             %newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
-            newcorners = [cornerformat(4,1) cornerformat(4,2); cornerformat(1,1) cornerformat(1,2); cornerformat(3,1) cornerformat(3,2); cornerformat(2,1) cornerformat(2,2)];
+            newcorners = [cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2); cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2)];
             P = projector(newcorners);
-            final = transfer(bim,P); 
+            final = transfer(bim,P);
        
        end
        
@@ -191,14 +279,18 @@ function [robot, final, P, blockcase, robotcase, resa, resb] = initialise(file,b
     if (areaspace1 < areaspace2) && (areaspace1 < areaspace3)
        
         blockcase = 1;
+        final(round(resa*0.42):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
         
     elseif (areaspace2 < areaspace3)
             
         blockcase = 2;
+        final(round(resa*0.22):round(resa*0.43), round(resb*0.4):round(resb*0.6))  =  1;
+        final(round(resa*0.65):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
             
     else
 
         blockcase = 3;
+        final(round(resa*0.22):round(resa*0.65), round(resb*0.4):round(resb*0.6))  =  1;
             
     end
     
@@ -281,6 +373,8 @@ function dist = myeuclid(a , b)
     
 end
 
+
+
 function P = projector(coms) 
     
     %UV=zeros(4,2);
@@ -338,104 +432,16 @@ end
 
 function cornerformat = findcorners(bwlabeled, cornerlocs)
 
-        % Get the Centre Of Mass of the objects at each cornerloc
+    % Get the Centre Of Mass of the objects at each cornerloc
     c1com = centerofmass(bwlabeled,cornerlocs(1));
     c2com = centerofmass(bwlabeled,cornerlocs(2));
     c3com = centerofmass(bwlabeled,cornerlocs(3));
     c4com = centerofmass(bwlabeled,cornerlocs(4));
     c5com = centerofmass(bwlabeled,cornerlocs(5));
-    
-%     imagey = bim;
-%     imagey(c1com(1),c1com(2)) = 0;
-%     imagey(c2com(1),c2com(2)) = 0;
-%     imagey(c3com(1),c3com(2)) = 0;
-%     imagey(c4com(1),c4com(2)) = 0;
-%     imagey(c5com(1),c5com(2)) = 0;
-%     imshow(imagey);
 
     atob = myeuclid(c1com, c2com);
     atoc = myeuclid(c1com, c3com);
     atoe = myeuclid(c1com, c5com);
-%     btoe = myeuclid(c2com, c5com);
-%     ctoe = myeuclid(c3com, c5com);
-%     dtoe = myeuclid(c4com, c5com);
-    
-%     midpoint = (atoe +btoe + ctoe + dtoe)/4;
-%     
-%     bottom = [];
-%     top = [];
-%     
-%     if atoe < midpoint    
-%         bottom = [bottom; c1com];        
-%     else        
-%         top = [top; c1com];        
-%     end
-%     
-%     if btoe < midpoint    
-%         bottom = [bottom; c2com];        
-%     else        
-%         top = [top; c2com];        
-%     end
-%     
-%     if ctoe < midpoint    
-%         bottom = [bottom; c3com];        
-%     else        
-%         top = [top; c3com];        
-%     end
-%     
-%     if dtoe < midpoint    
-%         bottom = [bottom; c4com];        
-%     else        
-%         top = [top; c4com];        
-%     end
-%       
-%     if (bottom(1,1) - bottom(2,1))*(bottom(1,1) - bottom(2,1)) < (bottom(1,2) - bottom(2,2))*(bottom(1,2) - bottom(2,2))
-%        %portrait
-%        
-%        write = 'portrait';
-%        
-%        if bottom(1,1) < bottom(2,1)          
-%            cornerformat = [c1com; c2com];
-%            write = [write ' a'];
-%        else           
-%            cornerformat = [c2com; c1com];
-%            write = [write ' b'];
-%        end
-%        
-%        if top(1,1) < top(2,1)          
-%            cornerformat = [cornerformat; c3com; c4com];
-%            write = [write '1'];
-%        else           
-%            cornerformat = [cornerformat; c4com; c3com]; 
-%            write = [write '2'];
-%        end 
-%        
-%     else
-%         %landscape
-%         
-%         write = 'landscape'
-%         
-%         if bottom(1,2) < bottom(2,2)          
-%             cornerformat = [c1com; c2com];
-%             write = [write ' a'];
-%         else           
-%             cornerformat = [c2com; c1com];
-%             write = [write ' b'];
-%         end
-%        
-%         if top(1,2) < top(2,2)          
-%             cornerformat = [cornerformat; c3com; c4com];
-%             write = [write '1'];  
-%         else           
-%             cornerformat = [cornerformat; c4com; c3com];
-%             write = [write '2'];
-%         end 
-%         
-%     end
-%     
-%     write = write
-%     
-%     cornerformat = cornerformat
     
     % cornerformat in format [bl br tl tr] (portrait, robot at bottom)
     % Note: the test cases here have not used background subtraction, which
@@ -480,4 +486,10 @@ function imsect = imsections(bwlabeled, secLoc)
      
 end
 
-
+function image = getImage
+    unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
+    %unix(['mv 00000005.jpg ', filename, '.jpg']);
+    %Im = importdata([filename, '.jpg'],'jpg');
+    %image = importdata('00000005.jpg','jpg');
+    image = binarypic('00000005.jpg',0.7);
+end
