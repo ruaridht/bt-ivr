@@ -4,9 +4,25 @@
 % 
 % 
 %
-function [robot, final, P] = trim(file,background,robot)
+function [robot, final, P] = trim(file,background,robot,fromscratch)
     
-  
+    if fromscratch > 0
+        
+        %Take photos
+        input('Take background photo, press any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 6 -vo jpeg']);
+        background = '00000006.jpg';
+        
+        input('Take maze photo, press any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
+        file = '00000005.jpg';   
+        
+        input('Take robot photo, press the any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
+        robot = '00000004.jpg';
+        
+    end
+    
     %Fire up the projection, work out what the situation is
     [robot, final, P, blockcase, robotcase, resa, resb, robcom] = initialise(file,background,robot);
     
@@ -21,33 +37,39 @@ function [robot, final, P] = trim(file,background,robot)
     final(t1(1),t1(2)) = 1;
     final(t2(1),t2(2)) = 1;
     final(endtarget(1),endtarget(2)) = 1;
+    final((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
     final(robcom(1), robcom(2)) = 1;
-    %imshow(final);
+    imshow(final)
+    
     
     %Moveout
-   
-    
-    %Number of pixels between the robot and the target location??
+       
+    %Number of pixels between the robot and the target location
     xerxesAtLoc = 100;
-    
+
     open_robot
-    while (xerxesAtLoc > 15)
-        send_command('D,1,1')
-        read_command
+    while (xerxesAtLoc > 50)
+  
         
-        pause(1);
+        send_command('D,1,1')
+        
+        read_command       
+        image = getImage;  
+        
+        
         
         send_command('D,0,0')
         read_command
         
-        image = getImage;
         pimage = transfer(image, P);
-        pimage = pimage - final;
+        pimage = pimage - final;  
+        
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        robcom = centerofmass(robotlargest,1);
+        robcom = centerofmass(robotlargest,1);                
+        final(robcom(1),robcom(2)) = 0;
         
-        final(robcom(1),robcom(2)) = 1;
+        figure, imshow(final)
         
         xerxesAtLoc = myeuclid(robcom, t1)
         
@@ -113,8 +135,10 @@ function [robot, final, P] = trim(file,background,robot)
     
     close_robot
     
-    %imshow(final);
+    imshow(final);
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initialise(file,background,robot)
     
@@ -230,7 +254,7 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     
     P = projector(cornerformat);
     final = transfer(bim, P);
-%     imshow(final)
+     imshow(final)
     
     %possibly fix transform if we've botched it
     [resa resb] = size(final);
@@ -487,9 +511,9 @@ function imsect = imsections(bwlabeled, secLoc)
 end
 
 function image = getImage
-    unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
+    unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
     %unix(['mv 00000005.jpg ', filename, '.jpg']);
     %Im = importdata([filename, '.jpg'],'jpg');
     %image = importdata('00000005.jpg','jpg');
-    image = binarypic('00000005.jpg',0.7);
+    image = binarypic('00000004.jpg',0.7);
 end
