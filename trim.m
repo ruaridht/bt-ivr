@@ -30,15 +30,17 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     verttargs = round(resa*0.2*(0.53 + 1.1*blockcase));
     hortargs = resb*(0.5 + robotcase*0.25);
     t1 = [verttargs hortargs];
-    t2 = [verttargs (resb - hortargs)];
+    t2 = [verttargs (hortargs - resb*robotcase*0.5)];
     
     endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)];
     
     final(t1(1),t1(2)) = 1;
     final(t2(1),t2(2)) = 1;
     final(endtarget(1),endtarget(2)) = 1;
+    
     final((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
     final(robcom(1), robcom(2)) = 1;
+    
     imshow(final)
     
     
@@ -48,15 +50,36 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     xerxesAtLoc = 100;
 
     open_robot
-    while (xerxesAtLoc > 50)
-  
+    while (xerxesAtLoc > 15)
+        
+        offby = robcom(2) - t1(2)
+        turnslightly(offby,0.25);
+        
+%         if offby < -5
+%             % Turn left slightly
+%             send_command('D,-2,2');
+%             read_command;
+%     
+%             pause(0.25);
+%     
+%             send_command('D,0,0');
+%             read_command;
+%         end
+%         if offby > 5
+%             % Turn right slightly
+%             send_command('D,2,-2');
+%             read_command;
+%     
+%             pause(0.25);
+%     
+%             send_command('D,0,0');
+%             read_command;
+%         end
         
         send_command('D,1,1')
         
         read_command       
         image = getImage;  
-        
-        
         
         send_command('D,0,0')
         read_command
@@ -64,6 +87,7 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         pimage = transfer(image, P);
         pimage = pimage - final;  
         
+        imshow(pimage);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1);                
@@ -72,6 +96,31 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         figure, imshow(final)
         
         xerxesAtLoc = myeuclid(robcom, t1)
+        
+        turnslightly(-offby,0.2);
+        
+%         if offby > 5
+%             % Turn left slightly
+%             send_command('D,-2,2');
+%             read_command;
+%     
+%             pause(0.25);
+%     
+%             send_command('D,0,0');
+%             read_command;
+%         end
+%         
+%         if offby < -5
+%             % Turn right slightly
+%             send_command('D,2,-2');
+%             read_command;
+%     
+%             pause(0.25);
+%     
+%             send_command('D,0,0');
+%             read_command;
+%         end
+        
         
     end
     
@@ -82,25 +131,33 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     
     xerxesAtLoc = 100;
     
-    while (xerxesAtLoc > 40)
-        send_command('D,1,1')
-        read_command
+    while (xerxesAtLoc > 30)
         
-        pause(1);
+        offby = robcom(1) - t2(1)
+        turnslightly(-offby,0.25);
+        
+        send_command('D,1,1')
+        
+        read_command       
+        image = getImage;  
         
         send_command('D,0,0')
         read_command
         
-        image = getImage;
         pimage = transfer(image, P);
-        pimage = pimage - final;
+        pimage = pimage - final;  
+        
+        imshow(pimage);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        robcom = centerofmass(robotlargest,1);
+        robcom = centerofmass(robotlargest,1);                
+        final(robcom(1),robcom(2)) = 0;
         
-        final(robcom(1),robcom(2)) = 1;
+        figure, imshow(final)
         
         xerxesAtLoc = myeuclid(robcom, t2)
+        
+        turnslightly(offby,0.2);
         
     end
     
@@ -112,25 +169,32 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     xerxesAtLoc = 100;
     
     while (xerxesAtLoc > 40)
-        send_command('D,1,1')
-        read_command
         
-        pause(1);
+        offby = robcom(1) - t2(1)
+        turnslightly(-offby,0.25);
+        
+        send_command('D,1,1')
+        
+        read_command       
+        image = getImage;  
         
         send_command('D,0,0')
         read_command
         
-        image = getImage;
         pimage = transfer(image, P);
-        pimage = pimage - final;
+        pimage = pimage - final;  
+        
+        imshow(pimage);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        robcom = centerofmass(robotlargest,1);
+        robcom = centerofmass(robotlargest,1);                
+        final(robcom(1),robcom(2)) = 0;
         
-        final(robcom(1),robcom(2)) = 1;
+        figure, imshow(final)
         
         xerxesAtLoc = myeuclid(robcom, endtarget)
         
+        turnslightly(offby,0.2);
     end
     
     close_robot
@@ -516,4 +580,44 @@ function image = getImage
     %Im = importdata([filename, '.jpg'],'jpg');
     %image = importdata('00000005.jpg','jpg');
     image = binarypic('00000004.jpg',0.7);
+end
+
+function turn90(direction)
+    %direction: 1 for right, -1 for left.
+    %string = ['D,' speed ',' -speed];
+    if direction == 1
+        send_command('D,4,-4');
+    else
+        send_command('D,-4,4');
+    end
+    read_command;
+    pause(1.3);
+    send_command('D,0,0');
+    read_command;
+    
+        
+end
+function turnslightly(offset,mod)
+    if (offset > 5)
+        % Turn right slightly
+        send_command('D,2,-2');
+        read_command;
+    
+        pause(mod);
+    
+        send_command('D,0,0');
+        read_command;
+    end
+    
+    if (offset < -5)
+        %turn left slightly
+        send_command('D,-2,2');
+        read_command;
+    
+        pause(mod);
+    
+        send_command('D,0,0');
+        read_command;
+    end
+    
 end
