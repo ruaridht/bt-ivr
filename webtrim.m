@@ -4,7 +4,7 @@
 % 
 % 
 %
-function [robot, final, P] = trim(file,background,robot,fromscratch)
+function [robot, final, P] = webtrim(file,background,robot,fromscratch)
     
     if fromscratch > 0
         
