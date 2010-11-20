@@ -42,7 +42,10 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     final(robcom(1), robcom(2)) = 1;
     
     imshow(final)
+
+    prevcom = robcom;
     
+    turnrate = 20.7767/360;
     
     %Moveout
        
@@ -51,39 +54,28 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
 
     open_robot
     while (xerxesAtLoc > 15)
+    
+        v1 = robcom - prevcom;
         
-        offby = robcom(2) - t1(2)
-        turnslightly(offby,0.25);
+        v2 = t1 - robcom;
         
-%         if offby < -5
-%             % Turn left slightly
-%             send_command('D,-2,2');
-%             read_command;
-%     
-%             pause(0.25);
-%     
-%             send_command('D,0,0');
-%             read_command;
-%         end
-%         if offby > 5
-%             % Turn right slightly
-%             send_command('D,2,-2');
-%             read_command;
-%     
-%             pause(0.25);
-%     
-%             send_command('D,0,0');
-%             read_command;
-%         end
+        angle = vangle(v1,v2);
+                
+        if (robcom(2) > t1(2))
+            
+            send_command('D,1,-1');
+            
+        elseif (robcom(2) < t1(2))
+            
+            send_command('D,-1,1');     
+            
+        end
         
-        send_command('D,1,1')
-        
-        read_command       
-        image = getImage;  
-        
-        send_command('D,0,0')
-        read_command
-        
+        pause(angle*turnrate);
+        moveforward('D,3,3', 1);     
+        prevcom = robcom;
+       
+        image = getImage;
         pimage = transfer(image, P);
         pimage = pimage - final;  
         
@@ -92,58 +84,41 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1);                
         final(robcom(1),robcom(2)) = 0;
-        
-        figure, imshow(final)
-        
+   
         xerxesAtLoc = myeuclid(robcom, t1)
-        
-        turnslightly(-offby,0.2);
-        
-%         if offby > 5
-%             % Turn left slightly
-%             send_command('D,-2,2');
-%             read_command;
-%     
-%             pause(0.25);
-%     
-%             send_command('D,0,0');
-%             read_command;
-%         end
-%         
-%         if offby < -5
-%             % Turn right slightly
-%             send_command('D,2,-2');
-%             read_command;
-%     
-%             pause(0.25);
-%     
-%             send_command('D,0,0');
-%             read_command;
-%         end
-        
         
     end
     
+    figure, imshow(final)
+    
     % Turn Xerxes 90 degrees (in the correct direction)
-    send_command('D,1,-1');
-    pause(5);
-    send_command('D,0,0');
+    turn90(robotcase);
     
     xerxesAtLoc = 100;
     
     while (xerxesAtLoc > 30)
         
-        offby = robcom(1) - t2(1)
-        turnslightly(-offby,0.25);
+        v1 = robcom - prevcom;
         
-        send_command('D,1,1')
+        v2 = t1 - robcom;
         
-        read_command       
-        image = getImage;  
+        angle = vangle(v1,v2);
+                
+        if (robcom(2) > t1(2))
+            
+            send_command('D,1,-1');
+            
+        elseif (robcom(2) < t1(2))
+            
+            send_command('D,-1,1');     
+            
+        end
         
-        send_command('D,0,0')
-        read_command
-        
+        pause(angle*turnrate);
+        moveforward('D,3,3', 1);     
+        prevcom = robcom;
+       
+        image = getImage;
         pimage = transfer(image, P);
         pimage = pimage - final;  
         
@@ -152,19 +127,13 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1);                
         final(robcom(1),robcom(2)) = 0;
-        
-        figure, imshow(final)
-        
-        xerxesAtLoc = myeuclid(robcom, t2)
-        
-        turnslightly(offby,0.2);
+   
+        xerxesAtLoc = myeuclid(robcom, t1)
         
     end
     
     % Turn Xerxes 90 degrees (in the correct direction)
-    send_command('D,1,-1');
-    pause(5.5);
-    send_command('D,0,0');
+    turn90(robotcase);
     
     xerxesAtLoc = 100;
     
@@ -620,4 +589,18 @@ function turnslightly(offset,mod)
         read_command;
     end
     
+end
+
+function degs = vangle(v1,v2)
+    v1mag = sqrt(v1(1)*v1(1) + v1(2)*v1(2));
+    v2mag = sqrt(v2(1)*v2(1) + v2(2)*v2(2));
+    v1dotv2 = (v1(1)*v2(1) + v1(2)*v2(2));
+    rad = acos(v1dotv2/(v1mag*v2mag));
+    degs = round(180*rad/pi);
+end
+
+function moveforward(speed, time)
+    send_command(speed);
+    pause(time);
+    send_command('D,0,0');
 end
