@@ -1,4 +1,4 @@
-% Trim: takes a binary image and returns the N max areas present in the
+op% Trim: takes a binary image and returns the N max areas present in the
 % image.
 % N = 11
 % 
@@ -42,12 +42,12 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     
     final(t1(1),t1(2)) = 1;
     final(t2(1),t2(2)) = 1;
+    final((endtarget(1)-1:endtarget(1)+2),(endtarget(2)-1:endtarget(2)+2)) = 0;
     final(endtarget(1),endtarget(2)) = 1;
-    
     final((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
     final(robcom(1), robcom(2)) = 1;
     
-    imshow(final)
+    figure, imshow(final)
 
     prevcom = robcom;
     
@@ -64,21 +64,15 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     while (xerxesAtLoc > 15)
     
         v1 = robcom - prevcom;
-        
         v2 = t1 - robcom;
         
         angle = vangle(v1,v2);
-        
-        dist = -robotcase*(robcom(2) - t1(2));
+        dist = (robcom(2) - t1(2));
                 
         if (dist > 2)
-            
             send_command('D,1,-1');
-            
         elseif (dist < -2)
-            
-            send_command('D,-1,1');     
-            
+            send_command('D,-1,1');
         end
         
         pause(angle*turnrate);
@@ -100,7 +94,9 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         %figure, imshow(robotlargest);
         robcom = centerofmass(robotlargest,1);
         
+        
         pimage(robcom(1),robcom(2)) = 0;
+        pimage((t1(1)-1:t1(1)+2),(t1(2)-1:t1(2)+2)) = 0;
         pimage(t1(1),t1(2)) = 1;
         imshow(pimage);
         final(robcom(1),robcom(2)) = 0;
@@ -112,12 +108,12 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     figure, imshow(final)
     
     % Turn Xerxes 90 degrees (in the correct direction)
-    %turn90(robotcase);
-    send_command('D,1,-1');
-    pause(120*turnrate);
-    send_command('D,0,0');
+    turn90(robotcase);
+%     send_command('D,1,-1');
+%     pause(120*turnrate);
+%     send_command('D,0,0');
     
-    %prevcom = robcom;
+    prevcom = robcom;
     
     xerxesAtLoc = myeuclid(robcom, t2);
     
@@ -128,16 +124,14 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         
         angle = vangle(v1,v2);
         
-        dist = -robotcase*(robcom(1) - t2(1));
+        dist = robotcase*(robcom(1) - t2(1));
                 
         if (dist > 2)
             
             send_command('D,1,-1');
             
         elseif (dist < -2)
-            
-            send_command('D,-1,1');     
-            
+            send_command('D,-1,1');
         end
         
         pause(angle*turnrate);
@@ -169,13 +163,13 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     end
     
     % Turn Xerxes 90 degrees (in the correct direction)
-    %turn90(robotcase);
-    send_command('D,1,-1');
-    pause(120*turnrate);
-    send_command('D,0,0');
+    turn90(robotcase);
+%     send_command('D,1,-1');
+%     pause(120*turnrate);
+%     send_command('D,0,0');
     
     xerxesAtLoc = myeuclid(robcom,endtarget);
-    %prevcom = robcom;
+    prevcom = robcom;
     
     while (xerxesAtLoc > 5)
         
@@ -231,7 +225,8 @@ end
 function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(file,background,robot)
     
     % Get the binary image of the map
-    thresh = thresholder(file);
+    %thresh = thresholder(file);
+    thresh = 101;
     bim = binarypic(file,thresh);
     
     % Subtract the background
@@ -242,6 +237,8 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
        bim = bim - tim;
        
     end
+    
+    bim = cleanup(bim,1,1,0);
 
     % Show the background ... ?
     %imshow(bim);
@@ -527,20 +524,21 @@ function finalout = transfer(img, P)
 end
 
 function newimage = binarypic(name,threshold)
+
     binary_pic = myjpgload(name,0);
     [m,n] = size(binary_pic);
+    threshold = 0.65*(mean(binary_pic,2));
     newimage = binary_pic;
     for r = 1 : m
        for c = 1 : n
-               if (binary_pic(r,c) > threshold)
-                       newimage(r,c) = 0;
-               else
-
-               newimage(r,c) = 255;
-
+           if (binary_pic(r,c) > threshold)
+                newimage(r,c) = 0;
+           else
+                newimage(r,c) = 255;
            end
        end
     end
+    figure, imshow(newimage);
 end
 
 function threshold = thresholder(file)
@@ -559,35 +557,55 @@ function cornerformat = findcorners(bwlabeled, cornerlocs)
     c4com = centerofmass(bwlabeled,cornerlocs(4));
     c5com = centerofmass(bwlabeled,cornerlocs(5));
 
-    atob = myeuclid(c1com, c2com);
-    atoc = myeuclid(c1com, c3com);
+    %atob = myeuclid(c1com, c2com);
+    %atoc = myeuclid(c1com, c3com);
     atoe = myeuclid(c1com, c5com);
+   
+    % Rearrange the points based on the distance to the small point
+    btoe = myeuclid(c2com,c5com);
+    ctoe = myeuclid(c3com,c5com);
+    dtoe = myeuclid(c4com,c5com);
+
+    a = [atoe c1com];
+    b = [btoe c2com];
+    c = [ctoe c3com];
+    d = [dtoe c4com];
+   
+    bob = sortrows([a; b; c; d]);
+    
+    c1com = [bob(5) bob(9)];
+    c2com = [bob(6) bob(10)];
+    c3com = [bob(7) bob(11)];
+    c4com = [bob(8) bob(12)];
+    
+    %cornerformat = [c1com; c2com; c3com; c4com];
+    cornerformat = [c2com; c1com; c4com; c3com];
     
     % cornerformat in format [bl br tl tr] (portrait, robot at bottom)
     % Note: the test cases here have not used background subtraction, which
     % will need to be omitted.
     
-    if atob > atoc        
-        if atoe > myeuclid(c2com,c5com)
-            cornerformat = [c2com; c4com; c1com; c3com];
-            %words = 'case a'            
-% tests 1,3
-        else
-            cornerformat = [c3com; c4com; c2com; c1com];
-            %words = 'case b'
-        end
-%test 5        
-    else        
-        if atoe > myeuclid(c3com,c5com)         
-            cornerformat = [c4com; c3com; c2com; c1com];
-            %words = 'case c'
-%test 4            
-        else
-            cornerformat = [c2com; c1com; c4com; c3com];
-            %words = 'case d'
-        end
-% test 2
-    end % End of large if
+%     if atob > atoc        
+%         if atoe > myeuclid(c2com,c5com)
+%             cornerformat = [c2com; c4com; c1com; c3com];
+%             %words = 'case a'            
+% % tests 1,3
+%         else
+%             cornerformat = [c3com; c4com; c2com; c1com];
+%             %words = 'case b'
+%         end
+% %test 5        
+%     else        
+%         if atoe > myeuclid(c3com,c5com)         
+%             cornerformat = [c4com; c3com; c2com; c1com];
+%             %words = 'case c'
+% %test 4            
+%         else
+%             cornerformat = [c2com; c1com; c4com; c3com];
+%             %words = 'case d'
+%         end
+% % test 2
+%     end % End of large if
 
 end
 
@@ -611,8 +629,8 @@ function image = getImage(threshold)
     %unix(['mv 00000005.jpg ', filename, '.jpg']);
     %Im = importdata([filename, '.jpg'],'jpg');
     %image = importdata('00000005.jpg','jpg');
-    threshold = thresholder('00000004.jpg');
-    image = binarypic('00000004.jpg',threshold);
+    %threshold = thresholder('00000004.jpg');
+    image = binarypic('00000004.jpg',0.7);
 end
 
 function turn90(direction)
