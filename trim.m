@@ -1,4 +1,4 @@
-op% Trim: takes a binary image and returns the N max areas present in the
+% Trim: takes a binary image and returns the N max areas present in the
 % image.
 % N = 11
 % 
