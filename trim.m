@@ -1,14 +1,20 @@
-% Trim: takes a binary image and returns the N max areas present in the
-% image.
-% N = 11
+% Trim: Performs robot manipulation.
+% background: the image of the background
+% file: the image of the maze
+% robot: the image of the robot on the maze
+% fromscratch: indicates whether we need to take new file,background and
+% robot photos
+% NOTE: Outputs used for recording results.
 % 
 % 
 %
-function [robot, final, P] = trim(file,background,robot,fromscratch)
+function [result, robot, final, P] = trim(file,background,robot,fromscratch,threshold)
+    
+    result = zeros(460, 360, 3);
     
     if fromscratch > 0
         
-        %Take photos
+        % Take photos
         input('Take background photo, press any key to continue')
         unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 6 -vo jpeg']);
         background = '00000006.jpg';
@@ -26,36 +32,50 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         
     end
     
-    %Fire up the projection, work out what the situation is
-    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(file,background,robot);
+    % Fire up the projection, work out what situation the world is in.
+    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(file,background,robot,threshold);
     
-    %Assign targets
+    % Assign targets.  Since the vertical (y) values of the target location
+    % for 
     verttargs = round(resa*0.2*(0.5 + 1.1*blockcase));
     hortargs = resb*(0.5 + robotcase*0.25);
     t1 = [verttargs hortargs];
     t2 = [verttargs (hortargs - resb*robotcase*0.5)];
-   
-%     t1 = t1 + [-20 10];
-%     t2 = t2 + [0 -10];
     
     endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)];
     
-    final(t1(1),t1(2)) = 1;
-    final(t2(1),t2(2)) = 1;
-    final((endtarget(1)-1:endtarget(1)+2),(endtarget(2)-1:endtarget(2)+2)) = 0;
-    final(endtarget(1),endtarget(2)) = 1;
-    final((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
-    final(robcom(1), robcom(2)) = 1;
+    figure(100000), imshow(final)
+    result(:,:,3) = final;
+    figure(50)
+    imshow(result);
     
-    figure, imshow(final)
+    result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),1) = 1;    
+    result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),2) = 1;
+    result((t1(1)-2):(t1(1)+2),(t1(2)-2:t1(2)+2),3) = 1;
+    
+    result((t2(1)-2):(t2(1)+2),(t2(2)-2:t2(2)+2),1) = 1; 
+    result((t2(1)-3):(t2(1)+3),(t2(2)-3:t2(2)+3),2) = 1;
+    result((t2(1)-2):(t2(1)+2),(t2(2)-2:t2(2)+2),3) = 1;
+    
+    result((endtarget(1)-2):(endtarget(1)+2),(endtarget(2)-2:endtarget(2)+2),2) = 1; 
+    result((endtarget(1)-3):(endtarget(1)+3),(endtarget(2)-3:endtarget(2)+3),1) = 1;
+    result((endtarget(1)-2):(endtarget(1)+2),(endtarget(2)-2:endtarget(2)+2),3) = 1;
 
+    result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 1; 
+    result((robcom(1)-3):(robcom(1)+3),(robcom(2)-3:robcom(2)+3),3) = 1;
+    result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),2) = 1;
+    
+    figure(10000000), imshow(result);
+    figure, imshow(final)
+    
+    
     prevcom = robcom;
     
     % The turnrate is roughly how long it takes to turn 1 degree 
     % (at speed 1,-1)
     turnrate = 20.7767/360;
     
-    %Moveout
+    %Moveouti
        
     %Number of pixels between the robot and the target location
     xerxesAtLoc = 100;
@@ -77,7 +97,7 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         
         pause(angle*turnrate);
         if (xerxesAtLoc > 40)
-            moveforward('D,3,3', 1);     
+            moveforward('D,2,2', 1);     
         else
             moveforward('D,1,1', 1);
         end
@@ -87,19 +107,17 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         pimage = transfer(image, P);
         pimage = pimage - final;  
         pimage = cleanup(pimage,1,3,0);    
-        
-        %figure, imshow(pimage);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        %figure, imshow(robotlargest);
         robcom = centerofmass(robotlargest,1);
-        
         
         pimage(robcom(1),robcom(2)) = 0;
         pimage((t1(1)-1:t1(1)+2),(t1(2)-1:t1(2)+2)) = 0;
         pimage(t1(1),t1(2)) = 1;
-        imshow(pimage);
-        final(robcom(1),robcom(2)) = 0;
+        %imshow(pimage);
+        
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, t1)
         
@@ -108,7 +126,7 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     figure, imshow(final)
     
     % Turn Xerxes 90 degrees (in the correct direction)
-    turn90(robotcase);
+    %turn90(robotcase);
 %     send_command('D,1,-1');
 %     pause(120*turnrate);
 %     send_command('D,0,0');
@@ -153,17 +171,14 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1)
         
-        pimage(robcom(1),robcom(2)) = 0;
-        pimage(t2(1),t2(2)) = 1;
-        imshow(pimage);
-        final(robcom(1),robcom(2)) = 0;
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, t2)
         
     end
     
     % Turn Xerxes 90 degrees (in the correct direction)
-    turn90(robotcase);
 %     send_command('D,1,-1');
 %     pause(120*turnrate);
 %     send_command('D,0,0');
@@ -191,8 +206,10 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         % slower = more accurate
         if (xerxesAtLoc > 50)
             moveforward('D,3,3', 1);     
-        else
+        elseif (xerxesAtLoc > 10)
             moveforward('D,1,1', 1);
+        else
+            moveforward('D,1,1',0.5);
         end    
         prevcom = robcom;
        
@@ -206,10 +223,8 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1)
         
-        pimage(robcom(1),robcom(2)) = 0;
-        pimage(endtarget(1),endtarget(2)) = 1;
-        imshow(pimage);
-        final(robcom(1),robcom(2)) = 0;
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, endtarget)
         
@@ -217,31 +232,36 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     
     close_robot
     
-    imshow(final);
+    figure(1), imshow(result);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(file,background,robot)
+function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(file,background,robot,threshold)
     
     % Get the binary image of the map
     %thresh = thresholder(file);
-    thresh = 101;
+    thresh = threshold;
+    
+    %colourmap = zeros(480,640,3);
+    %figure(50), imshow(colourmap);
+    
     bim = binarypic(file,thresh);
     
     % Subtract the background
-    if background ~= 0
-        
-       tim = binarypic(background,thresh);
-       
-       bim = bim - tim;
-       
-    end
+%     if background ~= 0
+%         
+%        tim = binarypic(background,thresh);
+%        
+%        bim = bim - tim;
+%        
+%     end
+    tim = binarypic(background,thresh); 
+    bim = imsubtract(bim,tim);
     
-    bim = cleanup(bim,1,1,0);
-
-    % Show the background ... ?
-    %imshow(bim);
+    figure(300),imshow(bim);
+    
+    %colourmap(:,:,2) = bim;
     
     % Label the disconnected regions of bim
     bwlabeled = bwlabel(bim,4);
@@ -324,6 +344,7 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
         lowcompacsarea(a) = bearea(imsections(bwlabeled,lowcompacsloc(a)));
     end
     
+    figure(1000)
     % Populate cornerlocs
     for a = 1 : 5
         maxindex = 1;
@@ -336,11 +357,28 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
         lowcompacsarea(maxindex) = 0;
     end
     
+%     for a = 1 : 5
+%         colourmap(:,:,3) = (colourmap(:,:,3) + find(bwlabeled==cornerlocs(a))');
+%         if a > 4
+%         end
+%         
+%     end
+
+    
     cornerformat = findcorners(bwlabeled, cornerlocs);
     
+%     cf = cornerformat;
+%     for i = 1 : 4
+%         t1 = [cf(i) cf(i+4)];
+%         bim((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),1) = 1;    
+%         bim((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),2) = 1;
+%         bim((t1(1)-2):(t1(1)+2),(t1(2)-2:t1(2)+2),3) = 1;
+%     end
+%     
+%     figure(123),imshow(bim);
     P = projector(cornerformat);
     final = transfer(bim, P);
-     imshow(final)
+    figure(1234),imshow(final);
     
     %possibly fix transform if we've botched it
     [resa resb] = size(final);
@@ -390,18 +428,18 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
        
         blockcase = 1;
         %final(round(resa*0.42):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
-        final(round(resa*0.42):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.42):round(resa*0.87), round(resb*0.42):round(resb*0.58))  =  1;
         
     elseif (areaspace2 < areaspace3)
             
         blockcase = 2;
-        final(round(resa*0.22):round(resa*0.43), round(resb*0.45):round(resb*0.55))  =  1;
-        final(round(resa*0.65):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.22):round(resa*0.43), round(resb*0.42):round(resb*0.58))  =  1;
+        final(round(resa*0.65):round(resa*0.87), round(resb*0.42):round(resb*0.58))  =  1;
             
     else
 
         blockcase = 3;
-        final(round(resa*0.22):round(resa*0.65), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.22):round(resa*0.65), round(resb*0.42):round(resb*0.58))  =  1;
             
     end
     
@@ -527,7 +565,7 @@ function newimage = binarypic(name,threshold)
 
     binary_pic = myjpgload(name,0);
     [m,n] = size(binary_pic);
-    threshold = 0.65*(mean(binary_pic,2));
+    threshold = threshold*(mean(binary_pic,2));
     newimage = binary_pic;
     for r = 1 : m
        for c = 1 : n
@@ -616,12 +654,13 @@ function imsect = imsections(bwlabeled, secLoc)
     m = length(u);
     n = length(v);
     
-    imsect = zeros(640,480);
+    imsect = zeros(480,640);
     
     for x = 1:m
         imsect(u(x),v(x)) = 1;
     end
      
+    %imsect = imsect(1:480,1:640);
 end
 
 function image = getImage(threshold)
@@ -642,7 +681,7 @@ function turn90(direction)
         send_command('D,-4,4');
     end
     read_command;
-    pause(1.3);
+    pause(1.15);
     send_command('D,0,0');
     read_command;
     
