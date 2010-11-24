@@ -1,19 +1,21 @@
 % Trim: Performs robot manipulation.
 % background: the image of the background
-% file: the image of the maze
+% maze: the image of the maze
 % robot: the image of the robot on the maze
-% fromscratch: indicates whether we need to take new file,background and
+% fromscratch: indicates whether we need to take new maze,background and
 % robot photos
 % NOTE: Outputs used for recording results.
 % 
 % 
 %
-function [result, robot, final, P] = trim(file,background,robot,fromscratch,threshold)
+function [result, robot, final, P] = trim(maze,background,robot,fromscratch,threshold)
     
+    % Create the image that will be presented when the robot reaches the
+    % destination. result is a colour image with the target locations,
+    % path of the robot and maze outine of the world.
     result = zeros(460, 360, 3);
     
     if fromscratch > 0
-        
         % Take photos
         input('Take background photo, press any key to continue')
         unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 6 -vo jpeg']);
@@ -22,23 +24,28 @@ function [result, robot, final, P] = trim(file,background,robot,fromscratch,thre
         
         input('Take maze photo, press any key to continue')
         unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
-        file = '00000005.jpg';
-        figure, imshow(imread(file));
+        maze = '00000005.jpg';
+        figure, imshow(imread(maze));
         
         input('Take robot photo, press the any key to continue')
         unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
         robot = '00000004.jpg';
         figure, imshow(imread(robot));
-        
     end
     
     % Fire up the projection, work out what situation the world is in.
-    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(file,background,robot,threshold);
+    % Initialise is called to get all information needed before movement of
+    % the robot.
+    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(maze,background,robot,threshold);
     
-    % Assign targets.  Since the vertical (y) values of the target location
-    % for 
+    % Assign targets.  verttargs is used in both cases, since the two
+    % vertical (y) values should always be the same.
+    % hortargs is the horizontal (x) value of the target location.
+    % t1 and t2 are the two target locations, and endtarget is the final
+    % position for the robot
     verttargs = round(resa*0.2*(0.5 + 1.1*blockcase));
     hortargs = resb*(0.5 + robotcase*0.25);
+    
     t1 = [verttargs hortargs];
     t2 = [verttargs (hortargs - resb*robotcase*0.5)];
     
@@ -237,16 +244,16 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(file,background,robot,threshold)
+function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(maze,background,robot,threshold)
     
     % Get the binary image of the map
-    %thresh = thresholder(file);
+    %thresh = thresholder(maze);
     thresh = threshold;
     
     %colourmap = zeros(480,640,3);
     %figure(50), imshow(colourmap);
     
-    bim = binarypic(file,thresh);
+    bim = binarypic(maze,thresh);
     
     % Subtract the background
 %     if background ~= 0

@@ -1,39 +1,41 @@
 % Trim: Performs robot manipulation.
 % background: the image of the background
-% file: the image of the maze
+% maze: the image of the maze
 % robot: the image of the robot on the maze
-% fromscratch: indicates whether we need to take new file,background and
+% fromscratch: indicates whether we need to take new maze,background and
 % robot photos
 % NOTE: Outputs used for recording results.
 % 
 % 
 %
-function [robot, final, P] = trim(file,background,robot,fromscratch)
+function [result, robot, final, P] = trim(maze,background,robot,fromscratch,threshold)
     
+    % Create the image that will be presented when the robot reaches the
+    % destination. result is a colour image with the target locations,
+    % path of the robot and maze outine of the world.
     result = zeros(460, 360, 3);
     
     if fromscratch > 0
-        
         % Take photos
-        %input('Take background photo, press any key to continue')
-        %unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 6 -vo jpeg']);
+        input('Take background photo, press any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 6 -vo jpeg']);
         background = '00000006.jpg';
         figure, imshow(imread(background));
         
-        %input('Take maze photo, press any key to continue')
-        %unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
-        file = '00000005.jpg';
-        figure, imshow(imread(file));
+        input('Take maze photo, press any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 5 -vo jpeg']);
+        maze = '00000005.jpg';
+        figure, imshow(imread(maze));
         
-        %input('Take robot photo, press the any key to continue')
-        %unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
+        input('Take robot photo, press the any key to continue')
+        unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
         robot = '00000004.jpg';
         figure, imshow(imread(robot));
-        
     end
     
     % Fire up the projection, work out what situation the world is in.
-    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(file,background,robot);
+    % Initialise is c
+    [robot, final, P, blockcase, robotcase, resa, resb, robcom, thresh] = initialise(maze,background,robot,threshold);
     
     % Assign targets.  Since the vertical (y) values of the target location
     % for 
@@ -75,7 +77,7 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     % (at speed 1,-1)
     turnrate = 20.7767/360;
     
-    %Moveout
+    %Moveouti
        
     %Number of pixels between the robot and the target location
     xerxesAtLoc = 100;
@@ -171,10 +173,8 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1)
         
-        pimage(robcom(1),robcom(2)) = 0;
-        pimage(t2(1),t2(2)) = 1;
-        imshow(pimage);
-        final(robcom(1),robcom(2)) = 0;
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, t2)
         
@@ -225,10 +225,8 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1)
         
-        pimage(robcom(1),robcom(2)) = 0;
-        pimage(endtarget(1),endtarget(2)) = 1;
-        imshow(pimage);
-        final(robcom(1),robcom(2)) = 0;
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, endtarget)
         
@@ -236,21 +234,21 @@ function [robot, final, P] = trim(file,background,robot,fromscratch)
     
     close_robot
     
-    imshow(final);
+    figure(1), imshow(result);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(file,background,robot)
+function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(maze,background,robot,threshold)
     
     % Get the binary image of the map
-    %thresh = thresholder(file);
-    thresh = 101;
+    %thresh = thresholder(maze);
+    thresh = threshold;
     
-    colourmap = zeros(480,640,3);
-    figure(50), imshow(colourmap);
+    %colourmap = zeros(480,640,3);
+    %figure(50), imshow(colourmap);
     
-    bim = binarypic(file,thresh);
+    bim = binarypic(maze,thresh);
     
     % Subtract the background
 %     if background ~= 0
@@ -261,7 +259,9 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
 %        
 %     end
     tim = binarypic(background,thresh); 
-    bim = bim - tim;
+    bim = imsubtract(bim,tim);
+    
+    figure(300),imshow(bim);
     
     %colourmap(:,:,2) = bim;
     
@@ -430,18 +430,18 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
        
         blockcase = 1;
         %final(round(resa*0.42):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
-        final(round(resa*0.42):round(resa*0.87), round(resb*0.45):round(resb*0.5))  =  1;
+        final(round(resa*0.42):round(resa*0.87), round(resb*0.42):round(resb*0.58))  =  1;
         
     elseif (areaspace2 < areaspace3)
             
         blockcase = 2;
-        final(round(resa*0.22):round(resa*0.43), round(resb*0.45):round(resb*0.55))  =  1;
-        final(round(resa*0.65):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.22):round(resa*0.43), round(resb*0.42):round(resb*0.58))  =  1;
+        final(round(resa*0.65):round(resa*0.87), round(resb*0.42):round(resb*0.58))  =  1;
             
     else
 
         blockcase = 3;
-        final(round(resa*0.22):round(resa*0.65), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.22):round(resa*0.65), round(resb*0.42):round(resb*0.58))  =  1;
             
     end
     
@@ -567,7 +567,7 @@ function newimage = binarypic(name,threshold)
 
     binary_pic = myjpgload(name,0);
     [m,n] = size(binary_pic);
-    threshold = 0.7*(mean(binary_pic,2));
+    threshold = threshold*(mean(binary_pic,2));
     newimage = binary_pic;
     for r = 1 : m
        for c = 1 : n
