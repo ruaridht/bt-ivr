@@ -4,20 +4,19 @@
 % 
 % 
 %
-function [robot, final, P] = webtrim
+function [result, robot, final, P] = webtrim
     
+    result = zeros(460, 360, 3);
         
      %Take photos
     input('Take maze photo, press any key to continue')
     take_snap;
-    %file = 'maze.ppm';
     pause(1);
     bim = imread('snap.ppm');
     pause(0.5);
     bim = im2bw(bim,0.9);
     bim = 1-bim;
     figure, imshow(bim);
-    %bim = binarypic(file);
         
     input('Take robot photo, press the any key to continue')
     take_snap;
@@ -37,20 +36,50 @@ function [robot, final, P] = webtrim
     %Assign targets
     verttargs = round(resa*0.2*(0.5 + 1.1*blockcase));
     hortargs = resb*(0.5 + robotcase*0.25);
-    t1 = [verttargs hortargs]
-    t2 = [verttargs (hortargs - resb*robotcase*0.5)]
+    t1 = [verttargs hortargs];
+    t2 = [verttargs (hortargs - resb*robotcase*0.5)];
     
-    endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)]
+    endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)];
+    
+    % Set the maze outline to the blue layer of result.
+    result(:,:,3) = final;
     
     final((t1(1)-1:t1(1)+2),(t1(2)-1:t1(2)+2)) = 0;
     final(t1(1), t1(2)) = 1;
     final(t2(1),t2(2)) = 0;
-%     final((endtarget(1)-1:endtarget(1)+2),(endtarget(2)-1:endtarget(2)+2)) = 0;
-%     final(endtarget(1),endtarget(2)) = 1;
+    final((endtarget(1)-1:endtarget(1)+2),(endtarget(2)-1:endtarget(2)+2)) = 0;
+    final(endtarget(1),endtarget(2)) = 1;
     final((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
     final(robcom(1), robcom(2)) = 1;
     
-    figure, imshow(final)
+    % Add colour to the target locations so we can distinguish between
+    % them. (Including the robot's start location.)
+    result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),1) = 1;    
+    result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),2) = 1;
+    result((t1(1)-2):(t1(1)+2),(t1(2)-2:t1(2)+2),3) = 1;
+    
+    result((t2(1)-2):(t2(1)+2),(t2(2)-2:t2(2)+2),1) = 1; 
+    result((t2(1)-3):(t2(1)+3),(t2(2)-3:t2(2)+3),2) = 1;
+    result((t2(1)-2):(t2(1)+2),(t2(2)-2:t2(2)+2),3) = 1;
+    
+    result((endtarget(1)-2):(endtarget(1)+2),(endtarget(2)-2:endtarget(2)+2),2) = 1; 
+    result((endtarget(1)-3):(endtarget(1)+3),(endtarget(2)-3:endtarget(2)+3),1) = 1;
+    result((endtarget(1)-2):(endtarget(1)+2),(endtarget(2)-2:endtarget(2)+2),3) = 1;
+
+    result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 1; 
+    result((robcom(1)-3):(robcom(1)+3),(robcom(2)-3:robcom(2)+3),3) = 1;
+    result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),2) = 1;
+    
+    corners = [[30,50];[30,310];[420,50];[420,310]];
+    for i = 1 : 4
+        corner = [corners(i) corners(i+4)];
+        result((corner(1)-2):(corner(1)+2),(corner(2)-2:corner(2)+2),2) = 1; 
+        result((corner(1)-3):(corner(1)+3),(corner(2)-3:corner(2)+3),1) = 1;
+        result((corner(1)-2):(corner(1)+2),(corner(2)-2:corner(2)+2),3) = 1;
+    end
+    
+    figure, imshow(final);
+    figure(5),imshow(result);
 
     prevcom = robcom;
     
@@ -92,37 +121,37 @@ function [robot, final, P] = webtrim
         pause(1);
     
         pimage = transfer(image, P);
-        pimage = pimage - final;  
-        pimage = cleanup(pimage,1,1,0);    
+        %pimage = pimage - final;
+        pimage = imsubtract(pimage,final);
+        pimage = cleanup(pimage,1,3,0);    
         
         pause(1);
-    
-%         figure(300), imshow(pimage);
+
 %         robotbwlabel = bwlabel(pimage,8);
 %         pause(3);
 %         robotlargest = getlargest(robotbwlabel,0);
-%         figure(200), imshow(robotlargest);
 %         pause(3);
+%         robcom = centerofmass(robotlargest,1);
+%         figure(2),imshow(robotlargest);
         robcom = centerofmass(pimage,1);
        
         pimage((robcom(1)-1:robcom(1)+2),(robcom(2)-1:robcom(2)+2)) = 0;
         pimage(robcom(1), robcom(2)) = 1;
         pimage((t1(1)-1:t1(1)+2),(t1(2)-1:t1(2)+2)) = 0;
         pimage(t1(1),t1(2)) = 1;
-        imshow(pimage);
+        figure(1), imshow(pimage);
         final(robcom(1),robcom(2)) = 0;
+        
+        % Draw the CoM of the robot onto result to record the path of the
+        % robot.
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, t1)
         
     end
     
-    figure, imshow(final)
-    
-    % Turn Xerxes 90 degrees (in the correct direction)
-    %turn90(robotcase);
-%     send_command('D,1,-1');
-%     pause(120*turnrate);
-%     send_command('D,0,0');
+    figure, imshow(final);
     
     %prevcom = robcom;
     
@@ -157,16 +186,15 @@ function [robot, final, P] = webtrim
         pause(1);
     
         pimage = transfer(image, P);
-        pimage = pimage - final;  
-        pimage = cleanup(pimage,1,1,0);    
+        %pimage = pimage - final;
+        pimage = imsubtract(pimage,final);
+        pimage = cleanup(pimage,1,3,0);    
         
         pause(1);
-    
-%         figure(300), imshow(pimage);
+        
 %         robotbwlabel = bwlabel(pimage,8);
 %         pause(3);
 %         robotlargest = getlargest(robotbwlabel,0);
-%         figure(200), imshow(robotlargest);
 %         pause(3);
         robcom = centerofmass(pimage,1);
        
@@ -176,48 +204,14 @@ function [robot, final, P] = webtrim
         pimage(t2(1),t2(2)) = 1;
         imshow(pimage);
         final(robcom(1),robcom(2)) = 0;
-   
-        xerxesAtLoc = myeuclid(robcom, t2)
-                
-%         if (dist > 5)
-%             
-%             send_command('D,20,-20');
-%             
-%         elseif (dist < -5)
-%             send_command('D,-20,20');
-%         end
-%         
-%         pause(angle*turnrate);
-%         % Slowdown
-%         if (xerxesAtLoc > 50)
-%             moveforward('D,50,50', 2);     
-%         else
-%             moveforward('D,20,20', 2);
-%         end
-%         prevcom = robcom;
-%        
-%         image = getImage(thresh);
-%         pimage = transfer(image, P);
-%         pimage = pimage - final;
-%         pimage = cleanup(pimage,1,3,0);     
-%         
-%         %figure(300),imshow(pimage);
-%         robotbwlabel = bwlabel(pimage,8);
-%         robotlargest = getlargest(robotbwlabel,0);
-%         robcom = centerofmass(robotlargest,1)
-%         
-%         pimage(robcom(1),robcom(2)) = 0;
-%         pimage(t2(1),t2(2)) = 1;
-%         imshow(pimage);
-%         final(robcom(1),robcom(2)) = 0;
-%    
-%         xerxesAtLoc = myeuclid(robcom, t2)
+        
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
+        
+        xerxesAtLoc = myeuclid(robcom, t2)      
         
     end
-    
-    % Turn Xerxes 90 degrees (in the correct direction)
-    %turn90(robotcase);
-    
+
     xerxesAtLoc = myeuclid(robcom,endtarget);
     %prevcom = robcom;
     
@@ -253,8 +247,9 @@ function [robot, final, P] = webtrim
         pause(1);
     
         pimage = transfer(image, P);
-        pimage = pimage - final;  
-        pimage = cleanup(pimage,1,1,0);    
+        %pimage = pimage - final;  
+        pimage = imsubtract(pimage,final);
+        pimage = cleanup(pimage,1,3,0);    
         
         pause(1);
     
@@ -272,40 +267,16 @@ function [robot, final, P] = webtrim
         pimage(endtarget(1),endtarget(2)) = 1;
         imshow(pimage);
         final(robcom(1),robcom(2)) = 0;
+        
+        result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
+        result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
         xerxesAtLoc = myeuclid(robcom, endtarget)
         
-%         pause(angle*turnrate);
-%         % Slowdown.  When xerxes is closer to the final target we want to
-%         % go slower (to be more precise with out movement). 
-%         % slower = more accurate
-%         if (xerxesAtLoc > 50)
-%             moveforward('D,3,3', 1);     
-%         else
-%             moveforward('D,1,1', 1);
-%         end    
-%         prevcom = robcom;
-%        
-%         image = getImage(thresh);
-%         pimage = transfer(image, P);
-%         pimage = pimage - final;
-%         pimage = cleanup(pimage,1,3,0);     
-%         
-%         %imshow(pimage);
-%         robotbwlabel = bwlabel(pimage,8);
-%         robotlargest = getlargest(robotbwlabel,0);
-%         robcom = centerofmass(robotlargest,1)
-%         
-%         pimage(robcom(1),robcom(2)) = 0;
-%         pimage(endtarget(1),endtarget(2)) = 1;
-%         imshow(pimage);
-%         final(robcom(1),robcom(2)) = 0;
-%    
-%         xerxesAtLoc = myeuclid(robcom, endtarget)
-        
     end
         
-    imshow(final);
+    %imshow(final);
+    figure(1), imshow(result);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -316,7 +287,6 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     %bim = cleanup(bim,1,1,0);
     bim = im2bw(bim);
     bim = imresize(bim,2);
-    
     robot = imresize(robot,2);
     
     % Label the disconnected regions of bim
@@ -325,27 +295,24 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     regiondata = regionprops(bwlabeled, 'Area');
     allareas = [regiondata.Area];
     
+    % areas: an array to store all areas in bim greater than 20 pixels.
+    % indexes: an array to store the indexes of the areas.
     areas = [];
-    
     m = length(allareas);
-   
     indexes = [];
     
+    % Populating indexes and areas.
     for i = 1 : m
-        
         if allareas(i) > 20
-           
            indexes = [indexes i];
            areas = [areas allareas(i)];
-            
         end
-               
     end
     
-    % Create an array to store the indexes of the 10 largest areas in the
-    % image (i.e. in 'areas')
-    % If there are fewer objects present arrlen will be less than 10.
-    arrlen = min(10,length(areas));
+    % arraymajig: an array to store the indexes of the 10 largest areas in the
+    % image (i.e. in 'areas'). If there are fewer objects present arrlen
+    % will be less than 10.
+    arrlen = min(20,length(areas));
     arraymajig = zeros(arrlen);
 
     n = length(arraymajig);
@@ -358,7 +325,6 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
            if (areas(b) > areas(maxed))
                maxed = b;
            end
-           
         end
         arraymajig(a) = indexes(maxed);
         areas(maxed) = 0;
@@ -366,7 +332,7 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     
     % lowcompacsloc: stores the locations (in bwlabeled) of the 6 most
     % compact objects in the top ten largest (in arraymajig)
-    lowcompacsloc = zeros(5);
+    lowcompacsloc = zeros(6);
     % compacs: stores the compactness of each image section in arraymajig
     compacs = zeros(arrlen);
     
@@ -377,7 +343,7 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     
     % Find the 6 most compact objects and return the locations (locations
     % in bwlabeled).
-    for a = 1 : 5
+    for a = 1 : 6
         maxed = 1;
         for b = 2 : n
             if (compacs(b) < compacs(maxed))
@@ -385,7 +351,6 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
             end
         end
         lowcompacsloc(a) = arraymajig(maxed);
-        %figure, imshow(imsections(bwlabeled,arraymajig(maxed)));
         compacs(maxed) = 100000;
     end
     
@@ -394,17 +359,17 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     cornerlocs = zeros(5);
     % lowcompacsarea: the areas of the locations (from lowcompacsloc) in
     % bwlabeled
-    lowcompacsarea = zeros(5);
+    lowcompacsarea = zeros(6);
     
-    % Populate lowcompacsloc
-    for a = 1 : 5
+    % Populate lowcompacsarea
+    for a = 1 : 6
         lowcompacsarea(a) = bearea(imsections(bwlabeled,lowcompacsloc(a)));
     end
     
     % Populate cornerlocs
     for a = 1 : 5
         maxindex = 1;
-        for b = 2 : 5
+        for b = 2 : 6
             if (lowcompacsarea(b) > lowcompacsarea(maxindex))
                 maxindex = b;
             end
@@ -415,12 +380,14 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     
     cornerformat = findcorners(bwlabeled, cornerlocs);
     
-    %UV = [[30,50]',[0,310]',[400,80]',[420,310]']';
-    %UV = [[15,25];[15,155];[210,25];[210,155]];
-    
-    %tform = cp2tform(cornerformat,UV,'projective');
-    %tform = maketform('projective',cornerformat,UV);
-    %final = imtransform(bim,tform);
+    % Useful debugging code incase the projection fails.
+%      cf = cornerformat;
+%      for i = 1 : 4
+%          t1 = [cf(i) cf(i+4)];
+%          bim((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3)) = 0;
+%          bim(t1(1),t1(2)) = 1;
+%      end
+%     figure(123),imshow(bim);
     
     P = projector(cornerformat);
     final = transfer(bim, P);
@@ -430,27 +397,27 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     %possibly fix transform if we've botched it
     [resa resb] = size(final);
     midspace = final((resa*0.3):(resa*0.6), (1:resb));
-    
-    if bearea(midspace) < 1
-            
-       %we have a problem
-       newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
-       P = projector(newcorners);
-       final = transfer(bim,P);
-       
-       topspace = final((resa*0.2):(resa*0.3), (1:resb));
-       botspace = final((resa*0.7):(resa*0.8), (1:resb));
-       
-       if bearea(topspace) < bearea(botspace)
-       
-            %newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
-            newcorners = [cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2); cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2)];
-            P = projector(newcorners);
-            final = transfer(bim,P);
-       
-       end
-       
-    end
+%     
+%     if bearea(midspace) < 1
+%             
+%        %we have a problem
+%        newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
+%        P = projector(newcorners);
+%        final = transfer(bim,P);
+%        
+%        topspace = final((resa*0.2):(resa*0.3), (1:resb));
+%        botspace = final((resa*0.7):(resa*0.8), (1:resb));
+%        
+%        if bearea(topspace) < bearea(botspace)
+%        
+%             %newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
+%             newcorners = [cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2); cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2)];
+%             P = projector(newcorners);
+%             final = transfer(bim,P);
+%        
+%        end
+%        
+%     end
   
 % Finding out where the blocks are
 
@@ -473,23 +440,24 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
        
         blockcase = 1;
         %final(round(resa*0.42):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
-        final(round(resa*0.42):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.40):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
         
     elseif (areaspace2 < areaspace3)
             
         blockcase = 2;
-        final(round(resa*0.22):round(resa*0.43), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.20):round(resa*0.43), round(resb*0.45):round(resb*0.55))  =  1;
         final(round(resa*0.65):round(resa*0.87), round(resb*0.45):round(resb*0.55))  =  1;
             
     else
 
         blockcase = 3;
-        final(round(resa*0.22):round(resa*0.65), round(resb*0.45):round(resb*0.55))  =  1;
+        final(round(resa*0.20):round(resa*0.65), round(resb*0.45):round(resb*0.55))  =  1;
             
     end
 
     robot = transfer(robot, P);
-    robot = robot - final;
+    %robot = robot - final;
+    robot = imsubtract(robot,final);
     
     robot = cleanup(robot,1,3,0);
     
@@ -497,9 +465,9 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom] = initial
     
     robotbwlabel = bwlabel(bwrobot,8);
     robotlargest = getlargest(robotbwlabel,0);
-    
+    figure(12345),imshow(robotlargest);
 
-    robotcom = centerofmass(robotlargest,1);
+    robotcom = centerofmass(robotlargest,1)
     
     % How to get which side the robot is on
     if (robotcom(2) > 120)
