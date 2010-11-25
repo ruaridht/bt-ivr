@@ -6,8 +6,11 @@
 % robot photos
 % NOTE: Outputs used for recording results.
 % 
-% 
-%
+% William Bradshaw   Ruaridh Thomson
+%     s0806628          s0786036
+%       <(oO)< ^(OO)^ >(Oo)> 
+%  Sponsored by the Kirby Death Squad
+
 function [result, robot, final, P] = trim(maze,background,robot,fromscratch,threshold)
     
     % Create the image that will be presented when the robot reaches the
@@ -31,6 +34,8 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
         unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
         robot = '00000004.jpg';
         figure, imshow(imread(robot));
+        
+        input('Ready?');
     end
     
     % Fire up the projection, work out what situation the world is in.
@@ -43,19 +48,24 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
     % hortargs is the horizontal (x) value of the target location.
     % t1 and t2 are the two target locations, and endtarget is the final
     % position for the robot
+    
+    % NOTE: Use the robcom X position as the hortargs
     verttargs = round(resa*0.2*(0.5 + 1.1*blockcase));
-    hortargs = resb*(0.5 + robotcase*0.25);
+    %hortargs = resb*(0.5 + robotcase*0.25);
+    hortargs = robcom(2);
     
     t1 = [verttargs hortargs];
     t2 = [verttargs (hortargs - resb*robotcase*0.5)];
     
+    % Since the maze is a mirror image of itself (down the height of it),
+    % the final position is found by mirroring the robot's start position.
     endtarget = [robcom(1) (robcom(2) - resb*robotcase*0.5)];
     
-    figure(100000), imshow(final)
+    % Set the maze outline to the blue layer of result.
     result(:,:,3) = final;
-    figure(50)
-    imshow(result);
     
+    % Add colour to the target locations so we can distinguish between
+    % them. (Including the robot's start location.)
     result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),1) = 1;    
     result((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),2) = 1;
     result((t1(1)-2):(t1(1)+2),(t1(2)-2:t1(2)+2),3) = 1;
@@ -72,48 +82,78 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
     result((robcom(1)-3):(robcom(1)+3),(robcom(2)-3:robcom(2)+3),3) = 1;
     result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),2) = 1;
     
-    figure(10000000), imshow(result);
-    figure, imshow(final)
-    
-    
+    % During operation we use vectors to calculate the angle the robot
+    % needs to turn.  Initially we want the robot's location to be (0,0),
+    % so we set the initial previous location to the robot's current
+    % (start) location.
+    % prevcom: The previous center of mass of the robot.
     prevcom = robcom;
     
-    % The turnrate is roughly how long it takes to turn 1 degree 
-    % (at speed 1,-1)
+    % The turnrate is an intelligent estimate of how long it takes to turn 1 degree 
+    % (at speed 1,-1).
     turnrate = 20.7767/360;
-    
-    %Moveouti
        
-    %Number of pixels between the robot and the target location
+    % xerxesAtLoc: the number of pixels between the robot and the target location.
+    % Initially this is just set to a suitable value so that we enter the
+    % loop.  It is overwritten inside the loop.
     xerxesAtLoc = 100;
 
     open_robot
-    while (xerxesAtLoc > 15)
     
+    % The robot's movement is divided into three sections corresponding to
+    % the 3 sections of the maze we need to navigate through.  Initially we
+    % want to move towards the gap in the centre of the maze, then move
+    % through the gap, and finally move onto the overall target location
+    % (endtarget).
+    % This first loop manages moving towards the gap by moving towards the
+    % first target, t1.  Once the robot is less than 15 pixels from this
+    % location we consider it to have reached the location and move onto
+    % the next phase.
+    while (xerxesAtLoc > 15)
+        
+        % v1: the vector of the robot's movement.
+        % v2: the vector from the robot to the target.
+        % angle: the angle between v1 and v2. This is the angle we want the
+        % robot to turn (i.e. turn so that it is now moving along v2
+        % towards the target).
+        % dist: the difference between the x values of the robot and
+        % target.
         v1 = robcom - prevcom;
         v2 = t1 - robcom;
-        
         angle = vangle(v1,v2);
         dist = (robcom(2) - t1(2));
                 
+        % Although not strictly necessary, we typically don't need the
+        % robot to turn if its direction is close enough.
         if (dist > 2)
             send_command('D,1,-1');
         elseif (dist < -2)
             send_command('D,-1,1');
         end
-        
         pause(angle*turnrate);
+        
+        % Until we get close enough to the target location we want to move
+        % a bit quicker.  Once close enough we slow down.
         if (xerxesAtLoc > 40)
             moveforward('D,2,2', 1);     
         else
             moveforward('D,1,1', 1);
         end
+        % Once moved we set the previous CoM to the old CoM before we get
+        % the new one.
         prevcom = robcom;
-
+        
+        % image: the photo of the world's current situation
+        % pimage: the image after projection, background removal, and
+        % cleanup.
+        % robotbwlabel: the labeled pimage to get the robot
+        % robotlargest: the largest object in the image (the only object is
+        % the robot, with the possibility of artifacts).
+        % robcom: the new center of mass of the robot
         image = getImage(thresh);
         pimage = transfer(image, P);
         pimage = pimage - final;  
-        pimage = cleanup(pimage,1,3,0);    
+        pimage = cleanup(pimage,1,3,0);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
         robcom = centerofmass(robotlargest,1);
@@ -121,46 +161,40 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
         pimage(robcom(1),robcom(2)) = 0;
         pimage((t1(1)-1:t1(1)+2),(t1(2)-1:t1(2)+2)) = 0;
         pimage(t1(1),t1(2)) = 1;
-        %imshow(pimage);
+        figure(2),imshow(pimage);
         
+        % Draw the CoM of the robot onto result to record the path of the
+        % robot.
         result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
         result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
-        xerxesAtLoc = myeuclid(robcom, t1)
-        
+        % Get the distance of the robot from the target location.
+        xerxesAtLoc = myeuclid(robcom, t1);
     end
     
-    figure, imshow(final)
+    %prevcom = robcom;
     
-    % Turn Xerxes 90 degrees (in the correct direction)
-    %turn90(robotcase);
-%     send_command('D,1,-1');
-%     pause(120*turnrate);
-%     send_command('D,0,0');
-    
-    prevcom = robcom;
-    
+    % Set the distance to the new target.
     xerxesAtLoc = myeuclid(robcom, t2);
     
+    % Enter the second phase of the robot's movement - moving through the
+    % middle section of the maze.
     while (xerxesAtLoc > 15)
-        
         v1 = robcom - prevcom;
         v2 = t2 - robcom;
-        
         angle = vangle(v1,v2);
         
+        % Instead of using the x value (as in the first phase) we want to
+        % use the y value since we are moving horizontally across the map.
         dist = robotcase*(robcom(1) - t2(1));
-                
+        
         if (dist > 2)
-            
             send_command('D,1,-1');
-            
         elseif (dist < -2)
             send_command('D,-1,1');
         end
-        
         pause(angle*turnrate);
-        % Slowdown
+        
         if (xerxesAtLoc > 50)
             moveforward('D,2,2', 1);     
         else
@@ -171,34 +205,35 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
         image = getImage(thresh);
         pimage = transfer(image, P);
         pimage = pimage - final;
-        pimage = cleanup(pimage,1,3,0);     
-        
-        %imshow(pimage);
+        pimage = cleanup(pimage,1,3,0);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        robcom = centerofmass(robotlargest,1)
+        robcom = centerofmass(robotlargest,1);
+        
+        pimage(robcom(1),robcom(2)) = 0;
+        pimage((t2(1)-1:t2(1)+2),(t2(2)-1:t2(2)+2)) = 0;
+        pimage(t2(1),t2(2)) = 1;
+        figure(2),imshow(pimage);
         
         result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
         result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
-        xerxesAtLoc = myeuclid(robcom, t2)
-        
+        xerxesAtLoc = myeuclid(robcom, t2);
     end
     
-    % Turn Xerxes 90 degrees (in the correct direction)
-%     send_command('D,1,-1');
-%     pause(120*turnrate);
-%     send_command('D,0,0');
-    
     xerxesAtLoc = myeuclid(robcom,endtarget);
-    prevcom = robcom;
+    %prevcom = robcom;
     
+    % The third (and final) phase of the robot's movement.  We want the
+    % robot much closer to the target (endtarget), so we lower the boundary
+    % of xerxesAtLoc.
     while (xerxesAtLoc > 5)
-        
         v1 = robcom - prevcom;
         v2 = endtarget - robcom;
-        
         angle = vangle(v1,v2);
+        
+        % As in the first phase, we are using the x value since the robot
+        % is moving vertically.
         dist = (robcom(2) - endtarget(2));
                 
         if (dist < -5)
@@ -206,11 +241,11 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
         elseif (dist > 5)
             send_command('D,-1,1');
         end
-        
         pause(angle*turnrate);
-        % Slowdown.  When xerxes is closer to the final target we want to
-        % go slower (to be more precise with out movement). 
-        % slower = more accurate
+       
+        % To further increase the accuracy of the robot position, we add an extra
+        % condition that slows the robot even more when it is closer than
+        % 10 pixels to the endtarget.
         if (xerxesAtLoc > 50)
             moveforward('D,3,3', 1);     
         elseif (xerxesAtLoc > 10)
@@ -223,18 +258,20 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
         image = getImage(thresh);
         pimage = transfer(image, P);
         pimage = pimage - final;
-        pimage = cleanup(pimage,1,3,0);     
-        
-        %imshow(pimage);
+        pimage = cleanup(pimage,1,3,0);
         robotbwlabel = bwlabel(pimage,8);
         robotlargest = getlargest(robotbwlabel,0);
-        robcom = centerofmass(robotlargest,1)
+        robcom = centerofmass(robotlargest,1);
+        
+        pimage(robcom(1),robcom(2)) = 0;
+        pimage((endtarget(1)-1:endtarget(1)+2),(endtarget(2)-1:endtarget(2)+2)) = 0;
+        pimage(endtarget(1),endtarget(2)) = 1;
+        figure(2),imshow(pimage);
         
         result((robcom(1)-1):(robcom(1)+1),(robcom(2)-1:robcom(2)+1),1) = 0; 
         result((robcom(1)-2):(robcom(1)+2),(robcom(2)-2:robcom(2)+2),1) = 30;
    
-        xerxesAtLoc = myeuclid(robcom, endtarget)
-        
+        xerxesAtLoc = myeuclid(robcom, endtarget);
     end
     
     close_robot
@@ -243,59 +280,54 @@ function [result, robot, final, P] = trim(maze,background,robot,fromscratch,thre
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Initialise takes the file location of the maze, background, robot and a
+% user specified threshold.
+% Outputs:
+% robot: an image containing just the robot.
+% final: an image containing the final interpretation of the world (maze +
+% blocks).
+% P: the projection matrix.
+% blockcase: since there can only be 3 variations of the blockcase, we
+% represent this as an integer value (1, 2 or 3).
+% resa, resb: though not strictly necessary, we output the resolution of
+% final where resa is the height and resb is the width.
+% robcom: the robot's initial center of mass.
+% thresh: the threshold being used (incase any changes are made).
 
 function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] = initialise(maze,background,robot,threshold)
-    
-    % Get the binary image of the map
-    %thresh = thresholder(maze);
+
     thresh = threshold;
     
-    %colourmap = zeros(480,640,3);
-    %figure(50), imshow(colourmap);
-    
+    % bim: the binary image of the maze.
+    % tim: the binary image of the background
+    % Background removal for the maze.
     bim = binarypic(maze,thresh);
-    
-    % Subtract the background
-%     if background ~= 0
-%         
-%        tim = binarypic(background,thresh);
-%        
-%        bim = bim - tim;
-%        
-%     end
     tim = binarypic(background,thresh); 
     bim = imsubtract(bim,tim);
-    
-    figure(300),imshow(bim);
-    
-    %colourmap(:,:,2) = bim;
-    
-    % Label the disconnected regions of bim
+
+    % bwlabeled: label the disconnected regions of bim
     bwlabeled = bwlabel(bim,4);
-    % Get the areas associated to the labelled regions
+    % allareasL: get the areas associated to the labelled regions
     regiondata = regionprops(bwlabeled, 'Area');
     allareas = [regiondata.Area];
     
+    % areas: an array to store all areas in bim greater than 20 pixels.
+    % indexes: an array to store the indexes of the areas.
     areas = [];
-    
     m = length(allareas);
-   
     indexes = [];
     
+    % Populating indexes and areas.
     for i = 1 : m
-        
         if allareas(i) > 20
-           
            indexes = [indexes i];
            areas = [areas allareas(i)];
-            
         end
-               
     end
     
-    % Create an array to store the indexes of the 10 largest areas in the
-    % image (i.e. in 'areas')
-    % If there are fewer objects present arrlen will be less than 10.
+    % arraymajig: an array to store the indexes of the 10 largest areas in the
+    % image (i.e. in 'areas'). If there are fewer objects present arrlen
+    % will be less than 10.
     arrlen = min(10,length(areas));
     arraymajig = zeros(arrlen);
 
@@ -309,7 +341,6 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
            if (areas(b) > areas(maxed))
                maxed = b;
            end
-           
         end
         arraymajig(a) = indexes(maxed);
         areas(maxed) = 0;
@@ -346,12 +377,11 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
     % bwlabeled
     lowcompacsarea = zeros(6);
     
-    % Populate lowcompacsloc
+    % Populate lowcompacsarea
     for a = 1 : 6
         lowcompacsarea(a) = bearea(imsections(bwlabeled,lowcompacsloc(a)));
     end
     
-    figure(1000)
     % Populate cornerlocs
     for a = 1 : 5
         maxindex = 1;
@@ -363,17 +393,12 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
         cornerlocs(a) = lowcompacsloc(maxindex);
         lowcompacsarea(maxindex) = 0;
     end
-    
-%     for a = 1 : 5
-%         colourmap(:,:,3) = (colourmap(:,:,3) + find(bwlabeled==cornerlocs(a))');
-%         if a > 4
-%         end
-%         
-%     end
 
-    
+    % cornerformat: the center of masses of the corners arranged in the
+    % format [bottomleft bottomright topleft topright].
     cornerformat = findcorners(bwlabeled, cornerlocs);
     
+    % Useful debugging code incase the projection fails.
 %     cf = cornerformat;
 %     for i = 1 : 4
 %         t1 = [cf(i) cf(i+4)];
@@ -381,19 +406,21 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
 %         bim((t1(1)-3):(t1(1)+3),(t1(2)-3:t1(2)+3),2) = 1;
 %         bim((t1(1)-2):(t1(1)+2),(t1(2)-2:t1(2)+2),3) = 1;
 %     end
-%     
 %     figure(123),imshow(bim);
+
+    % P: get the projection matrix for the image.
+    % final: get the projection of bim.
     P = projector(cornerformat);
     final = transfer(bim, P);
-    figure(1234),imshow(final);
+    figure(123),imshow(final);
     
-    %possibly fix transform if we've botched it
+    % Consider the case when the projection failed, e.g. if the projection
+    % mirrored.
     [resa resb] = size(final);
     midspace = final((resa*0.3):(resa*0.6), (1:resb));
     
     if bearea(midspace) < 100
-            
-       %we have a problem
+       
        newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
        P = projector(newcorners);
        final = transfer(bim,P);
@@ -402,39 +429,37 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
        botspace = final((resa*0.7):(resa*0.8), (1:resb));
        
        if bearea(topspace) < bearea(botspace)
-       
-            %newcorners = [cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2); cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2)];
             newcorners = [cornerformat(1,1) cornerformat(1,2); cornerformat(4,1) cornerformat(4,2); cornerformat(2,1) cornerformat(2,2); cornerformat(3,1) cornerformat(3,2)];
             P = projector(newcorners);
             final = transfer(bim,P);
-       
        end
-       
     end
   
-% Finding out where the blocks are
-
+    % Find where the blocks are.
+    % blocks: the projection of the robot image.
     blocks = binarypic(robot,thresh);
     blocks = transfer(blocks, P);
-     
 
-    %closest to robot
+    % space1: the block section of the image closest to robot
+    % areaspace1: the area of the section.
     space1 = blocks((resa*0.3):(resa*0.4), (resb*0.45):(resb*0.50));
     areaspace1 = bearea(space1);
     
-    %middlespace
+    % Middle block section.
     space2 = blocks((resa*0.5):(resa*0.6), (resb*0.45):(resb*0.50));
     areaspace2 = bearea(space2);
     
-    %farspace
+    % Far block section.
     space3 = blocks((resa*0.7):(resa*0.8), (resb*0.45):(resb*0.50));
     areaspace3 = bearea(space3);
     
-    %Testing which block case we have
+    % Testing which block case we have by comparing the area of each block
+    % section. The space with the least area is the space with no block.
+    % Also paint over the corresponding section in final where the blocks
+    % are located.
     if (areaspace1 < areaspace2) && (areaspace1 < areaspace3)
        
         blockcase = 1;
-        %final(round(resa*0.42):round(resa*0.87), round(resb*0.4):round(resb*0.6))  =  1;
         final(round(resa*0.42):round(resa*0.87), round(resb*0.42):round(resb*0.58))  =  1;
         
     elseif (areaspace2 < areaspace3)
@@ -449,25 +474,29 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
         final(round(resa*0.22):round(resa*0.65), round(resb*0.42):round(resb*0.58))  =  1;
             
     end
-    
-    %rspace1 = blocks((resa*0.2):(resa*0.3), (resb*0.2):(resa*0.4));
-    %imshow(space3);
-%    imshow(blocks);
 
+    % robot: the image containing the robot.
+    % Since we painted the blocks into final, when we do image subtraction
+    % the only object left should be the robot (apart from artifacts that
+    % should be removed with cleanup).
     robot = binarypic(robot,thresh);
     robot = transfer(robot, P);
     robot = robot - final;
-    
     robot = cleanup(robot,1,3,0);
     
+    % bwrobot: robot converted to black and white (the is a safety step).
     bwrobot = im2bw(robot);
     
+    % robotbwlabel: the labelled regions of bwrobot.
+    % robotlargest: the image containing just the robot.
     robotbwlabel = bwlabel(bwrobot,8);
     robotlargest = getlargest(robotbwlabel,0);
     
+    % robotcom: the robot's CoM.
     robotcom = centerofmass(robotlargest,1);
     
-    % How to get which side the robot is on
+    % robotcase: the side of the maze the robot is starting on. We can find
+    % this with regards to the center line down the image.
     if (robotcom(2) > 240)
         robotcase = 1;
     else
@@ -476,29 +505,36 @@ function [robot, final, P, blockcase, robotcase, resa, resb, robotcom, thresh] =
     
 end
 
+% A function to get the center of mass of an object in a bwlabeled image.
+% bwim: the bwlabeled image
+% loc: the location of the object in bwim.
+% com: the center of mass of that object.
 function com = centerofmass(bwim, loc)
+    % image: grab the object from bwlabeled image.
     image = imsections(bwim,loc);
-    
     [H,W] = size(image);
     area = bearea(image);
-        
-    %com = (0,0);
+    
+    % r: the sum of the height
+    % c: the sum of the width
     r = 0;
     c = 0;
     
+    % Calculate 
     for x = 1 : W
         for y = 1 : H
                r = r + y*image(y,x);
                c = c + x*image(y,x);
         end
     end
-    
-    %com = [compactness r/area c/area];
+
+    % Get the averages (dividing by the area) and return them.
     com = [round(r/area) round(c/area)];
 end
 
 % Bearea. It just works. Bearea, the next best thing since Chuck Norris.
 % Bearea, the best a bear can get.
+% But seriously, bwarea doesn't get the precise area.
 function myarea = bearea(im)
     [H,W] = size(im);
     
@@ -513,28 +549,34 @@ function myarea = bearea(im)
     myarea = count;
 end
 
+% Get the compactness of an object in an image.
+% bwim: the bwlabeled image
+% loc: the location of the object in the bwlabeled image
+% compac: the compactness
 function compac = compacty(bwim, loc)
     image = imsections(bwim,loc);
     
     area = bearea(image);
     perim = bearea(mybwperim(image));
-     
-    % compactness
+
     compac = (perim*perim)/(4*pi*area);
 end
 
+% The Euclidean distance between two points.
+% dist: returns the distance.
 function dist = myeuclid(a , b)
     
     dist = sqrt((a(1) - b(1))*(a(1) - b(1)) + (a(2) - b(2))*(a(2) - b(2)));
     
 end
 
-
-
+% Get the projection matrix by estimating the homography mapping between
+% the location of four corner locations and the targets of these locations
+% in the order [bottomleft bottomright topleft topright].
+% P: returns the projection matrix.
+% coms: the input corner locations
 function P = projector(coms) 
     
-    %UV=zeros(4,2);
-    %XY=zeros(4,2);
     UV=[[30 , 50 ]',[30,310]',[420,50]',[420,310]']';    % target points
     XY=coms;    % source points
 
@@ -542,14 +584,19 @@ function P = projector(coms)
     
 end
 
+% Using a projection matrix, project an image (also converting back to
+% binary before returning).
+% img: the image to be projected.
+% P: the matrix to be used for projection.
 function finalout = transfer(img, P)
     % get input image and sizes
-    
+    % IR: the input row size
+    % IC: the input column size
     inimage=img;
     [IR,IC]=size(inimage);
 
-    outimage=zeros(460, 360);   % destination image
-    %v=zeros(3,1); % We don't need to assign v here, but meh
+    % outimage: the destination image to store the projection.
+    outimage = zeros(460, 360);
 
     % loop over all pixels in the destination image, finding
     % corresponding pixel in source image
@@ -565,15 +612,22 @@ function finalout = transfer(img, P)
     end
 
     finalout = outimage/255;
-
 end
 
+% Create and return a binary image of an image file corresponding to a
+% given threshold.
+% name: the local name of the image file to be used.
+% threshold: the threshold to be used for binarisation
+% newimage: the binarised version of the input image.
 function newimage = binarypic(name,threshold)
-
+    % Load the image and adjust the threshold with respect to the average
+    % pixel value in the image.
     binary_pic = myjpgload(name,0);
     [m,n] = size(binary_pic);
     threshold = threshold*(mean(binary_pic,2));
     newimage = binary_pic;
+    
+    % Convert the image to black and white based on the threshold.
     for r = 1 : m
        for c = 1 : n
            if (binary_pic(r,c) > threshold)
@@ -583,16 +637,22 @@ function newimage = binarypic(name,threshold)
            end
        end
     end
-    figure, imshow(newimage);
 end
 
+% A function to get the threshold based on the histogram values of the
+% image (if needed).
 function threshold = thresholder(file)
     image = imread(file);
     hist = dohist(image,0);
     threshold = findthresh(hist,4,1);
-
 end
 
+% A funtion to return the center of masses of the 4 corners in an image.
+% bwlabeled: a bwlabeled image.
+% cornerlocs: the location of the corners in bwalabeled, including the
+% robotic terminus.
+% cornerformat: the returned array of the CoMs in the format
+%        [bottomleft bottomright topleft topright]
 function cornerformat = findcorners(bwlabeled, cornerlocs)
 
     % Get the Centre Of Mass of the objects at each cornerloc
@@ -602,58 +662,46 @@ function cornerformat = findcorners(bwlabeled, cornerlocs)
     c4com = centerofmass(bwlabeled,cornerlocs(4));
     c5com = centerofmass(bwlabeled,cornerlocs(5));
 
-    %atob = myeuclid(c1com, c2com);
-    %atoc = myeuclid(c1com, c3com);
-    atoe = myeuclid(c1com, c5com);
-   
-    % Rearrange the points based on the distance to the small point
+    % We know the last CoM is the terminus (based on areas). We get the
+    % distance of the other corners to this.
+    atoe = myeuclid(c1com,c5com);
     btoe = myeuclid(c2com,c5com);
     ctoe = myeuclid(c3com,c5com);
     dtoe = myeuclid(c4com,c5com);
 
+    % Tuples holding the distances and the CoMs
     a = [atoe c1com];
     b = [btoe c2com];
     c = [ctoe c3com];
     d = [dtoe c4com];
-   
+    
+    % We then sort the CoMs based on the distance values.
     bob = sortrows([a; b; c; d]);
     
+    % Once sorted, assign the new corners.
     c1com = [bob(5) bob(9)];
     c2com = [bob(6) bob(10)];
     c3com = [bob(7) bob(11)];
     c4com = [bob(8) bob(12)];
     
-    %cornerformat = [c1com; c2com; c3com; c4com];
-    cornerformat = [c2com; c1com; c4com; c3com];
+    % Depending on perspective, the result is one of these. Get the
+    % perspective be getting the angle between c1c2 and c1c3 and comparing
+    % it to c2c1 and c2c4.
+    a1 = vangle((c2com-c1com),(c3com-c1com));
+    a2 = vangle((c2com-c1com),(c2com-c4com));
+    if (a2 > a1)
+        cornerformat = [c1com; c2com; c3com; c4com];
+    else
+        cornerformat = [c2com; c1com; c4com; c3com];
+    end
     
-    % cornerformat in format [bl br tl tr] (portrait, robot at bottom)
-    % Note: the test cases here have not used background subtraction, which
-    % will need to be omitted.
-    
-%     if atob > atoc        
-%         if atoe > myeuclid(c2com,c5com)
-%             cornerformat = [c2com; c4com; c1com; c3com];
-%             %words = 'case a'            
-% % tests 1,3
-%         else
-%             cornerformat = [c3com; c4com; c2com; c1com];
-%             %words = 'case b'
-%         end
-% %test 5        
-%     else        
-%         if atoe > myeuclid(c3com,c5com)         
-%             cornerformat = [c4com; c3com; c2com; c1com];
-%             %words = 'case c'
-% %test 4            
-%         else
-%             cornerformat = [c2com; c1com; c4com; c3com];
-%             %words = 'case d'
-%         end
-% % test 2
-%     end % End of large if
-
 end
 
+% Takes a bwlabeled image and a location in the image and returns just the
+% object.
+% bwlabeled: the bwlabeled image
+% secLoc: the location of the object in bwlabeled
+% imsect: the result object in binary
 function imsect = imsections(bwlabeled, secLoc)
     
     [u,v] = find(bwlabeled==secLoc);
@@ -666,59 +714,23 @@ function imsect = imsections(bwlabeled, secLoc)
     for x = 1:m
         imsect(u(x),v(x)) = 1;
     end
-     
-    %imsect = imsect(1:480,1:640);
 end
 
+% Takes a photo using a webcam and returns the binary version of that
+% image with respect to the threshold.
 function image = getImage(threshold)
     unix(['mplayer tv:// -tv driver=v4l:width=640:height=480:device=/dev/video0 -frames 4 -vo jpeg']);
     %unix(['mv 00000005.jpg ', filename, '.jpg']);
     %Im = importdata([filename, '.jpg'],'jpg');
     %image = importdata('00000005.jpg','jpg');
     %threshold = thresholder('00000004.jpg');
-    image = binarypic('00000004.jpg',0.7);
+    image = binarypic('00000004.jpg',threshold);
 end
 
-function turn90(direction)
-    %direction: 1 for right, -1 for left.
-    %string = ['D,' speed ',' -speed];
-    if direction == 1
-        send_command('D,4,-4');
-    else
-        send_command('D,-4,4');
-    end
-    read_command;
-    pause(1.15);
-    send_command('D,0,0');
-    read_command;
-    
-        
-end
-function turnslightly(offset,mod)
-    if (offset > 5)
-        % Turn right slightly
-        send_command('D,2,-2');
-        read_command;
-    
-        pause(mod);
-    
-        send_command('D,0,0');
-        read_command;
-    end
-    
-    if (offset < -5)
-        %turn left slightly
-        send_command('D,-2,2');
-        read_command;
-    
-        pause(mod);
-    
-        send_command('D,0,0');
-        read_command;
-    end
-    
-end
-
+% Calculates the angle between two vectors using the inverse cosine.
+% v1: the first vector
+% v2: the second vector
+% degs: the angle, in degrees, between the two vectors.
 function degs = vangle(v1,v2)
     v1mag = sqrt(v1(1)*v1(1) + v1(2)*v1(2));
     v2mag = sqrt(v2(1)*v2(1) + v2(2)*v2(2));
@@ -727,8 +739,14 @@ function degs = vangle(v1,v2)
     degs = round(180*rad/pi);
 end
 
+% Moves the robot forward with a specified speed for a specified time.
+% speed: the speed
+% time: the time
 function moveforward(speed, time)
+    % Sends the command to the robot to move at 'speed'
     send_command(speed);
+    % Pauses execution for 'time'
     pause(time);
+    % Sends the command to the robot to stop
     send_command('D,0,0');
 end

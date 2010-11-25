@@ -8,11 +8,11 @@ function [robot, final, P] = webtrim
     
         
      %Take photos
-    %input('Take maze photo, press any key to continue')
-    %take_snap;
+    input('Take maze photo, press any key to continue')
+    take_snap;
     %file = 'maze.ppm';
     pause(1);
-    bim = imread('maze.ppm');
+    bim = imread('snap.ppm');
     pause(0.5);
     bim = im2bw(bim,0.9);
     bim = 1-bim;
@@ -243,7 +243,7 @@ function [robot, final, P] = webtrim
             moveforward('D,40,40', 2);     
         elseif (xerxesAtLoc > 20)
             moveforward('D,10,10', 2);
-        elseif (xerxesAtLoc > 5)
+        else
             moveforward('D,2,2,',2);
         end
         
